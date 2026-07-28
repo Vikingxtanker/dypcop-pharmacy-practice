@@ -1,0 +1,33 @@
+{
+  "name": "dypcop-pharmacy-practice",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@emailjs/browser": "^4.4.1",
+    "@supabase/supabase-js": "^2.110.9",
+    "emailjs": "^5.0.2",
+    "next": "16.2.12",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.1.200",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "sweetalert2": "^11.26.25",
+    "swiper": "^14.0.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.12",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

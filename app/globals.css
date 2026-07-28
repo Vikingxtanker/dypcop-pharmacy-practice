@@ -1,0 +1,13 @@
+@import "./styles/style.css";
+@import "./styles/adr.css";
+@import "./styles/dic.css";
+
+:root {
+  --background: #f8f9fa;
+  --foreground: #333;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
