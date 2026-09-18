@@ -6,7 +6,7 @@ import HssNavbar from "@/components/layout/HssNavbar";
 import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
-import { formatIST } from "@/lib/utils";
+import { formatIST, istDateKey, istDayRangeUtc } from "@/lib/utils";
 import Swal from "sweetalert2";
 
 interface PatientRow {
@@ -130,6 +130,48 @@ export default function StationPage() {
     }
   };
 
+  const normalizeTestType = (t: string) => (t === "Systolic" || t === "Diastolic" || t === "BP" ? "BP" : t);
+
+  const testDisplayName = (t: string) => (t === "BP" ? "Blood Pressure (BP)" : t);
+
+  const getTodayExistingTypes = async (): Promise<Set<string> | null> => {
+    if (!currentPatient) return new Set<string>();
+    const todayKey = istDateKey(new Date().toISOString());
+    if (!todayKey) return new Set<string>();
+    const { start, end } = istDayRangeUtc(todayKey);
+    try {
+      const { data, error } = await supabase
+        .from("patient_tests")
+        .select("test_type")
+        .eq("patient_id", currentPatient.id)
+        .gte("created_at", start)
+        .lt("created_at", end);
+      if (error) throw error;
+      return new Set((data as { test_type: string }[] ?? []).map((r) => normalizeTestType(r.test_type)));
+    } catch (err) {
+      console.error("Error checking today's records:", err);
+      return null;
+    }
+  };
+
+  const assertNoDuplicateToday = async (requestedTypes: string[]): Promise<boolean> => {
+    const existing = await getTodayExistingTypes();
+    if (existing === null) {
+      Swal.fire("Error", "Could not verify today's records. Please try again.", "error");
+      return false;
+    }
+    const blocked = Array.from(new Set(requestedTypes.map(normalizeTestType))).filter((t) => existing.has(t));
+    if (blocked.length > 0) {
+      Swal.fire(
+        "Duplicate Entry",
+        `${blocked.map(testDisplayName).join(", ")} already recorded for this patient today. Only one result per test per day is allowed.`,
+        "warning"
+      );
+      return false;
+    }
+    return true;
+  };
+
   const handleSingleTestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPatient) return Swal.fire("No Patient", "Verify a patient first", "info");
@@ -151,6 +193,10 @@ export default function StationPage() {
     }
 
     let allOk = true;
+
+    const allowed = await assertNoDuplicateToday(payloads.map((p) => p.test_type as string));
+    if (!allowed) return;
+
     for (const p of payloads) {
       const ok = await saveTest(p, false);
       if (!ok) { allOk = false; break; }
@@ -211,6 +257,10 @@ export default function StationPage() {
     }
 
     let allOk = true;
+
+    const allowed = await assertNoDuplicateToday(testsToSave.map((t) => t.test_type as string));
+    if (!allowed) return;
+
     for (const t of testsToSave) {
       const ok = await saveTest(t, false);
       if (!ok) { allOk = false; break; }

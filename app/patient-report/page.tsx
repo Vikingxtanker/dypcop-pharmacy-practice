@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import HssNavbar from "@/components/layout/HssNavbar";
 import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
-import { formatDateIST } from "@/lib/utils";
+import { istDateKey, istDayRangeUtc, formatScreeningDate, formatScreeningDateShort } from "@/lib/utils";
 import Swal from "sweetalert2";
 
 interface PatientRow {
@@ -32,6 +32,12 @@ interface TestRecord {
   created_at: string;
 }
 
+interface ScreeningSession {
+  dateKey: string;
+  testCount: number;
+  label: string;
+}
+
 const COORDS = {
   name: { x: 126, y: 669 },
   age: { x: 404, y: 668 },
@@ -52,15 +58,38 @@ const COORDS = {
   counselingLineHeight: 15,
 };
 
+const STATION_PAIRED_TYPES = new Set(["Systolic", "Diastolic"]);
+
+const normalizeTestType = (t: string) => (STATION_PAIRED_TYPES.has(t) ? "BP" : t);
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+const buildSessions = (rows: { created_at: string; test_type: string }[]): ScreeningSession[] => {
+  const map = new Map<string, Set<string>>();
+  rows.forEach((r) => {
+    const key = istDateKey(r.created_at);
+    if (!key) return;
+    if (!map.has(key)) map.set(key, new Set());
+    map.get(key)!.add(normalizeTestType(r.test_type));
+  });
+  return Array.from(map.entries())
+    .map(([dateKey, types]) => ({ dateKey, testCount: types.size, label: formatScreeningDateShort(dateKey) }))
+    .sort((a, b) => (a.dateKey < b.dateKey ? 1 : -1));
+};
+
 export default function PatientReportPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [patientId, setPatientId] = useState("");
   const [patient, setPatient] = useState<PatientRow | null>(null);
+  const [sessions, setSessions] = useState<ScreeningSession[]>([]);
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [tests, setTests] = useState<Record<string, { value: string; raw: TestRecord }>>({});
   const [pdfLib, setPdfLib] = useState<typeof import("pdf-lib") | null>(null);
-  const reportRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || (user.role !== "admin" && user.role !== "documentation" && user.role !== "station")) {
@@ -130,12 +159,19 @@ export default function PatientReportPage() {
       }
     }
 
-    setTests(latest);
+    return latest;
   };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!patientId.trim()) return;
+
+    setLoading(true);
+    setError(null);
+    setPatient(null);
+    setSessions([]);
+    setSelectedDateKey(null);
+    setTests({});
 
     try {
       const { data: patientData, error: patientError } = await supabase
@@ -146,8 +182,6 @@ export default function PatientReportPage() {
 
       if (patientError || !patientData) {
         Swal.fire("Invalid ID", "No patient found with this ID", "error");
-        setPatient(null);
-        setTests({});
         return;
       }
 
@@ -155,33 +189,65 @@ export default function PatientReportPage() {
       setPatient(p);
 
       try {
-        const { data: testData, error: testError } = await supabase
+        const { data: dateData, error: dateError } = await supabase
           .from("patient_tests")
-          .select("*")
-          .eq("patient_id", p.id)
-          .order("created_at", { ascending: false });
+          .select("test_type, created_at")
+          .eq("patient_id", p.id);
 
-        if (testError) throw testError;
-        populateLatestTests((testData as TestRecord[]) || [], p);
+        if (dateError) throw dateError;
+        setSessions(buildSessions((dateData as { created_at: string; test_type: string }[]) || []));
       } catch {
-        const fallbackTests: Record<string, { value: string; raw: TestRecord }> = {};
-        if (p.systolic && p.diastolic) {
-          fallbackTests.bp = { value: `${p.systolic}/${p.diastolic}`, raw: {} as TestRecord };
-        }
-        if (p.counseling_points || p.counseling) {
-          fallbackTests.counselingPoints = { value: p.counseling_points || p.counseling || "N/A", raw: {} as TestRecord };
-        }
-        setTests(fallbackTests);
+        setError("Could not load screening records. Please try again.");
       }
-
-      Swal.fire("Patient Verified", "Report loaded successfully.", "success");
     } catch (err) {
       console.error("Error fetching patient:", err);
       Swal.fire("Error", "Could not fetch patient data", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const generatePDF = async () => {
+  const loadSessionReport = async (dateKey: string) => {
+    if (!patient) return;
+    setLoadingReport(true);
+    setError(null);
+    try {
+      const { start, end } = istDayRangeUtc(dateKey);
+      const { data: testData, error: testError } = await supabase
+        .from("patient_tests")
+        .select("*")
+        .eq("patient_id", patient.id)
+        .gte("created_at", start)
+        .lt("created_at", end)
+        .order("created_at", { ascending: false });
+
+      if (testError) throw testError;
+
+      const records = (testData as TestRecord[]) || [];
+      const latest = populateLatestTests(records, patient);
+      setTests(latest);
+      setSelectedDateKey(dateKey);
+      return latest;
+    } catch (err) {
+      console.error("Error loading report:", err);
+      setError("Could not load the report for this screening date. Please try again.");
+      return null;
+    } finally {
+      setLoadingReport(false);
+    }
+  };
+
+  const handlePrint = async (dateKey: string) => {
+    if (!patient) return;
+    let testsData = tests;
+    if (selectedDateKey !== dateKey) {
+      const latest = await loadSessionReport(dateKey);
+      if (latest) testsData = latest;
+    }
+    await generatePDF(dateKey, testsData);
+  };
+
+  const generatePDF = async (dateKey: string, testsData: Record<string, { value: string; raw: TestRecord }> = {}) => {
     if (!patient || !pdfLib) {
       Swal.fire("Error", "No patient data available", "error");
       return;
@@ -210,7 +276,7 @@ export default function PatientReportPage() {
         }
       };
 
-      const testVal = (key: string) => tests[key]?.value || "N/A";
+      const testVal = (key: string) => testsData[key]?.value || "N/A";
 
       draw(patient.name || "", COORDS.name);
       draw(String(patient.age ?? ""), COORDS.age);
@@ -223,8 +289,8 @@ export default function PatientReportPage() {
       draw(String(patient.bmi ?? ""), COORDS.bmi);
       draw(testVal("temp"), COORDS.temp);
 
-      const today = new Date();
-      const dateStr = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+      const [y, m, d] = dateKey.split("-").map(Number);
+      const dateStr = `${pad2(d)}/${pad2(m)}/${y}`;
       draw(dateStr, COORDS.date);
 
       draw(testVal("fbs"), COORDS.fbs);
@@ -239,7 +305,7 @@ export default function PatientReportPage() {
       const blob = new Blob([new Uint8Array(finalPdf)], { type: "application/pdf" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = `Patient_Report_${patient.id}.pdf`;
+      link.download = `Patient_Report_${patient.id}_${dateKey}.pdf`;
       link.click();
     } catch (err) {
       console.error("PDF Generation Error:", err);
@@ -253,48 +319,103 @@ export default function PatientReportPage() {
     <>
       <HssNavbar activePage="patient-report" />
       <main className="flex-fill mt-5 pt-5">
-        <div className="container py-5" style={{ maxWidth: 800 }}>
-          <h2 className="mb-4">Patient Report Generator</h2>
+        <div className="container py-5" style={{ maxWidth: 900 }}>
+          <h2 className="mb-4">Patient Report</h2>
 
           <form onSubmit={handleVerify} className="mb-4">
             <div className="mb-3">
               <label className="form-label">Enter Patient ID:</label>
               <input type="text" className="form-control" value={patientId} onChange={(e) => setPatientId(e.target.value)} required />
             </div>
-            <button type="submit" className="btn btn-primary">Fetch Report</button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? "Loading..." : "Fetch Report"}
+            </button>
           </form>
 
           {patient && (
-            <div ref={reportRef}>
+            <div className="bg-white p-4 shadow rounded mb-4">
               <h3>Patient Details</h3>
-
               <p><strong>Name:</strong> {patient.name}</p>
               <p><strong>Age:</strong> {patient.age}</p>
               <p><strong>Gender:</strong> {patient.gender}</p>
               <p><strong>Phone:</strong> {patient.phone || patient.mobile || "N/A"}</p>
               <p><strong>Address:</strong> {patient.address || "N/A"}</p>
               <p><strong>Patient ID:</strong> {patient.id}</p>
+            </div>
+          )}
 
-              <p><strong>BMI:</strong> {patient.bmi ?? "N/A"}</p>
+          {loading && <p className="text-muted text-center">Loading screening records...</p>}
 
-              <p><strong>Pulse Rate:</strong> {tests.pulseRate?.value || "N/A"}</p>
-              <p><strong>Body Temperature:</strong> {tests.temp?.value || "N/A"}</p>
-              <p><strong>SpO₂:</strong> {tests.spo2?.value || "N/A"}</p>
-              <p><strong>Date:</strong> {formatDateIST(new Date().toISOString())}</p>
-              <p><strong>FBS:</strong> {tests.fbs?.value || "N/A"}</p>
-              <p><strong>RBS:</strong> {tests.rbs?.value || tests.rbg?.value || "N/A"}</p>
-              <p><strong>PPBS:</strong> {tests.ppbs?.value || "N/A"}</p>
+          {error && (
+            <div className="alert alert-danger" role="alert">
+              {error}
+            </div>
+          )}
 
-              <p><strong>Hemoglobin:</strong> {tests.hemoglobin?.value || "N/A"}</p>
-              <p><strong>Random Blood Glucose:</strong> {tests.rbg?.value || "N/A"}</p>
-              <p><strong>FEV1:</strong> {tests.fev?.value || "N/A"}</p>
-              <p><strong>Blood Pressure:</strong> {tests.bp?.value || "N/A"}</p>
+          {patient && !loading && !error && sessions.length === 0 && (
+            <div className="alert alert-info" role="alert">
+              No health screening reports available for this patient.
+            </div>
+          )}
 
-              <p><strong>Patient Counseling:</strong> {tests.counselingPoints?.value || "N/A"}</p>
+          {patient && sessions.length > 0 && (
+            <div className="bg-white p-4 shadow rounded mb-4">
+              <h3 className="mb-3">Screening Reports</h3>
+              <div className="table-responsive">
+                <table className="table table-bordered table-hover align-middle">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Sr. No.</th>
+                      <th>Screening Date</th>
+                      <th>Tests</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sessions.map((s, idx) => (
+                      <tr key={s.dateKey} className={selectedDateKey === s.dateKey ? "table-primary" : ""}>
+                        <td>{idx + 1}</td>
+                        <td>{s.label}</td>
+                        <td>{s.testCount} tests</td>
+                        <td className="text-nowrap">
+                          <button className="btn btn-sm btn-outline-primary me-1" onClick={() => loadSessionReport(s.dateKey)}>
+                            View Report
+                          </button>
+                          <button className="btn btn-sm btn-outline-success" onClick={() => handlePrint(s.dateKey)}>
+                            Print
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-              <button className="btn btn-success mt-3" onClick={generatePDF}>
-                Generate PDF Report
-              </button>
+              {loadingReport && <p className="text-muted text-center">Loading report...</p>}
+
+              {selectedDateKey && !loadingReport && (
+                <div className="border-top mt-3 pt-3">
+                  <h4>Health Screening Report</h4>
+                  <p><strong>Screening Date:</strong> {formatScreeningDate(selectedDateKey)}</p>
+
+                  <p><strong>BMI:</strong> {patient.bmi ?? "N/A"}</p>
+                  <p><strong>Pulse Rate:</strong> {tests.pulseRate?.value || "N/A"}</p>
+                  <p><strong>Body Temperature:</strong> {tests.temp?.value || "N/A"}</p>
+                  <p><strong>SpO₂:</strong> {tests.spo2?.value || "N/A"}</p>
+                  <p><strong>FBS:</strong> {tests.fbs?.value || "N/A"}</p>
+                  <p><strong>RBS:</strong> {tests.rbs?.value || tests.rbg?.value || "N/A"}</p>
+                  <p><strong>PPBS:</strong> {tests.ppbs?.value || "N/A"}</p>
+                  <p><strong>Hemoglobin:</strong> {tests.hemoglobin?.value || "N/A"}</p>
+                  <p><strong>Random Blood Glucose:</strong> {tests.rbg?.value || "N/A"}</p>
+                  <p><strong>FEV1:</strong> {tests.fev?.value || "N/A"}</p>
+                  <p><strong>Blood Pressure:</strong> {tests.bp?.value || "N/A"}</p>
+                  <p><strong>Patient Counseling:</strong> {tests.counselingPoints?.value || "N/A"}</p>
+
+                  <button className="btn btn-success mt-3" onClick={() => generatePDF(selectedDateKey)}>
+                    Generate PDF Report
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
