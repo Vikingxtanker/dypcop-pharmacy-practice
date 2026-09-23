@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Book Your Appointment | D.Y. Patil College of Pharmacy",
+  title: "Book Your Appointment | Dr. D.Y. Patil College of Pharmacy",
   description:
     "Book your appointment for the Health Screening Camp at Dr. D.Y. Patil College of Pharmacy, Akurdi.",
   alternates: {
     canonical: "https://dypcoppharmacypractice.in/appointment",
   },
   openGraph: {
-    title: "Book Your Appointment | D.Y. Patil College of Pharmacy",
+    title: "Book Your Appointment | Dr. D.Y. Patil College of Pharmacy",
     description:
       "Book your appointment for the Health Screening Camp at Dr. D.Y. Patil College of Pharmacy, Akurdi.",
     url: "https://dypcoppharmacypractice.in/appointment",
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Book Your Appointment | D.Y. Patil College of Pharmacy",
+    title: "Book Your Appointment | Dr. D.Y. Patil College of Pharmacy",
     description:
       "Book your appointment for the Health Screening Camp at Dr. D.Y. Patil College of Pharmacy, Akurdi.",
     images: ["https://dypcoppharmacypractice.in/assets/og-image.webp"],
