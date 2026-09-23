@@ -7,9 +7,10 @@ import Swal from "sweetalert2";
 
 interface HssNavbarProps {
   activePage?: string;
+  publicOnly?: boolean;
 }
 
-export default function HssNavbar({ activePage }: HssNavbarProps) {
+export default function HssNavbar({ activePage, publicOnly }: HssNavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { user, login, logout } = useAuth();
 
@@ -64,6 +65,7 @@ export default function HssNavbar({ activePage }: HssNavbarProps) {
           <ul className="navbar-nav" id="navLinks">
             <li className="nav-item"><Link className={`nav-link fw-semibold ${isActive("home")}`} href="/">Home</Link></li>
             <li className="nav-item"><Link className={`nav-link fw-semibold ${isActive("appointment")}`} href="/appointment">Book Appointment</Link></li>
+            {!publicOnly && (<>
             <li className="nav-item"><Link className={`nav-link fw-semibold ${isActive("register")}`} href="/register">Register</Link></li>
             <li className="nav-item"><Link className={`nav-link fw-semibold ${isActive("station")}`} href="/station">Station</Link></li>
             <li className="nav-item"><Link className={`nav-link fw-semibold ${isActive("patient-report")}`} href="/patient-report">Patient Report</Link></li>
@@ -86,6 +88,7 @@ export default function HssNavbar({ activePage }: HssNavbarProps) {
                 <button className="btn btn-primary btn-sm" onClick={handleLoginClick}>Login</button>
               </li>
             )}
+            </>)}
           </ul>
         </div>
       </div>
