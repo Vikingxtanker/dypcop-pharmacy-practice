@@ -8,6 +8,19 @@ import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
 
+const HONORIFICS = ["mr", "mrs", "ms", "miss", "dr", "prof", "master", "md", "er", "engr", "smt", "smti", "shri", "kumari", "sir", "col", "maj", "capt", "lt", "lord", "lady", "fr", "rev", "sister", "baba"];
+const HONORIFIC_RE = new RegExp(`^(?:${HONORIFICS.join("|")})\\.?\\s+`, "i");
+
+const stripNamePrefix = (value: string) => {
+  let out = value;
+  let prev: string | null = null;
+  while (out !== prev) {
+    prev = out;
+    out = out.replace(/^\s+/, "").replace(HONORIFIC_RE, "");
+  }
+  return out;
+};
+
 export default function RegisterPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -69,7 +82,9 @@ export default function RegisterPage() {
   }, [formData.height, formData.weight]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const field = e.target.name;
+    const value = field === "name" ? stripNamePrefix(e.target.value) : e.target.value;
+    setFormData({ ...formData, [field]: value });
   };
 
   const handleClear = () => {
@@ -89,11 +104,17 @@ export default function RegisterPage() {
       return;
     }
 
-    const patientId = name.toLowerCase().replace(/\s+/g, "").slice(0, 3) + Math.floor(100 + Math.random() * 900);
+    const trimmedName = name.trim();
+    if (!trimmedName || /^(?:mrs?|ms|miss|dr|prof|master|md|er|engr|smt|smti|shri|kumari|sir|col|maj|capt|lt|lord|lady|fr|rev|sister|baba)\.?\s+/.test(trimmedName) || /^(?:mrs?|ms|miss|dr|prof|master|md|er|engr|smt|smti|shri|kumari|sir|col|maj|capt|lt|lord|lady|fr|rev|sister|baba)\.?$/i.test(trimmedName)) {
+      Swal.fire({ icon: "error", title: "Invalid Name", text: "Please enter the patient's actual name without prefixes (Mr., Mrs., Miss, Dr., etc.)" });
+      return;
+    }
+
+    const patientId = trimmedName.toLowerCase().replace(/\s+/g, "").slice(0, 3) + Math.floor(100 + Math.random() * 900);
 
     const payload = {
       id: patientId,
-      name,
+      name: trimmedName,
       dob,
       age: age ? parseInt(age) : null,
       gender,
@@ -149,7 +170,7 @@ export default function RegisterPage() {
             <div className="row g-3">
               <div className="col-md-6">
                 <label className="form-label">Full Name</label>
-                <input type="text" className="form-control" name="name" value={formData.name} onChange={handleChange} required />
+                <input type="text" className="form-control" name="name" placeholder="Enter full name (no prefixes like Mr., Mrs., Dr.)" value={formData.name} onChange={handleChange} required />
               </div>
               <div className="col-md-3">
                 <label className="form-label">Date of Birth</label>

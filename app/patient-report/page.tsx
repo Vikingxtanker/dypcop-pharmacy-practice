@@ -410,10 +410,6 @@ export default function PatientReportPage() {
                   <p><strong>FEV1:</strong> {tests.fev?.value || "N/A"}</p>
                   <p><strong>Blood Pressure:</strong> {tests.bp?.value || "N/A"}</p>
                   <p><strong>Patient Counseling:</strong> {tests.counselingPoints?.value || "N/A"}</p>
-
-                  <button className="btn btn-success mt-3" onClick={() => generatePDF(selectedDateKey)}>
-                    Generate PDF Report
-                  </button>
                 </div>
               )}
             </div>
