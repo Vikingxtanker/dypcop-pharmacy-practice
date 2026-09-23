@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import HssNavbar from "@/components/layout/HssNavbar";
 import Footer from "@/components/layout/Footer";
@@ -8,6 +8,75 @@ import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { formatIST, istDateKey, istDayRangeUtc } from "@/lib/utils";
 import Swal from "sweetalert2";
+import {
+  COUNSELING_LIMIT_MESSAGE,
+  COUNSELING_MAX_CHARS,
+  COUNSELING_MAX_LINES,
+  counselingStatus,
+  enforceCounselingLimit,
+} from "@/lib/counseling-limit";
+
+const counselingLimitToast = () =>
+  Swal.fire({
+    toast: true,
+    position: "top-end",
+    timer: 3500,
+    timerProgressBar: true,
+    showConfirmButton: false,
+    icon: "warning",
+    title: COUNSELING_LIMIT_MESSAGE,
+    customClass: { title: "fs-6 fw-normal" },
+  });
+
+function useCounselingField(initialValue = "") {
+  const [value, setValue] = useState(initialValue);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const pendingCaretRef = useRef<number | null>(null);
+  const toastShownRef = useRef(false);
+  const valueRef = useRef(initialValue);
+
+  useEffect(() => {
+    const el = ref.current;
+    const pos = pendingCaretRef.current;
+    if (el && pos !== null && document.activeElement === el) {
+      el.setSelectionRange(pos, pos);
+    }
+    pendingCaretRef.current = null;
+  });
+
+  const onChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const raw = e.target.value;
+    const rawCaret = e.target.selectionStart ?? raw.length;
+    const enforced = enforceCounselingLimit(raw, rawCaret);
+    const prev = valueRef.current;
+    valueRef.current = enforced.value;
+    pendingCaretRef.current = enforced.caret;
+
+    if (enforced.value !== prev) {
+      setValue(enforced.value);
+    } else if (enforced.value !== raw) {
+      e.currentTarget.value = enforced.value;
+    }
+
+    if (enforced.truncated) {
+      if (!toastShownRef.current) {
+        toastShownRef.current = true;
+        counselingLimitToast();
+      }
+    } else {
+      toastShownRef.current = false;
+    }
+  }, []);
+
+  const reset = useCallback(() => {
+    setValue(initialValue);
+    valueRef.current = initialValue;
+    pendingCaretRef.current = null;
+    toastShownRef.current = false;
+  }, [initialValue]);
+
+  return { value, ref, onChange, reset };
+}
 
 interface PatientRow {
   id: string;
@@ -55,7 +124,9 @@ export default function StationPage() {
   const [testValue, setTestValue] = useState("");
   const [testValueSys, setTestValueSys] = useState("");
   const [testValueDia, setTestValueDia] = useState("");
-  const [testTextValue, setTestTextValue] = useState("");
+
+  const { value: counselingValue, ref: counselingRef, onChange: onCounselingChange, reset: resetCounseling } = useCounselingField();
+  const { value: summaryCounselingValue, ref: summaryCounselingRef, onChange: onSummaryCounselingChange, reset: resetSummaryCounseling } = useCounselingField();
 
   const [showSummary, setShowSummary] = useState(false);
   const [summary, setSummary] = useState({
@@ -184,8 +255,8 @@ export default function StationPage() {
       payloads.push({ patient_id: currentPatient.id, test_type: "Diastolic", value_numeric: parseFloat(testValueDia), unit: "mmHg" });
       payloads.push({ patient_id: currentPatient.id, test_type: "BP", value_text: `${testValueSys}/${testValueDia}`, unit: "mmHg" });
     } else if (stationSelect === "Counseling") {
-      if (!testTextValue.trim()) return Swal.fire("Empty", "Please enter notes", "warning");
-      payloads.push({ patient_id: currentPatient.id, test_type: "Counseling", value_text: testTextValue.trim(), unit: "-" });
+      if (!counselingValue.trim()) return Swal.fire("Empty", "Please enter notes", "warning");
+      payloads.push({ patient_id: currentPatient.id, test_type: "Counseling", value_text: counselingValue.trim(), unit: "-" });
     } else {
       if (!testValue || isNaN(parseFloat(testValue))) return Swal.fire("Invalid", "Enter a valid numeric value", "warning");
       const config = TEST_TYPES.find((t) => t.value === stationSelect);
@@ -207,7 +278,7 @@ export default function StationPage() {
       setTestValue("");
       setTestValueSys("");
       setTestValueDia("");
-      setTestTextValue("");
+      resetCounseling();
       setStationSelect("");
       await loadTestHistory();
     } else {
@@ -246,7 +317,7 @@ export default function StationPage() {
       testsToSave.push({ patient_id: currentPatient.id, test_type: "BP", value_text: `${sys}/${dia}`, unit: "mmHg" });
     }
 
-    const counseling = getVal("counseling");
+    const counseling = summaryCounselingValue;
     if (counseling.trim()) {
       testsToSave.push({ patient_id: currentPatient.id, test_type: "Counseling", value_text: counseling.trim(), unit: "-" });
     }
@@ -269,6 +340,7 @@ export default function StationPage() {
     if (allOk) {
       Swal.fire("Success", "All tests saved successfully!", "success");
       setSummary({ hemoglobin: "", rbg: "", fbs: "", ppbs: "", ogtt: "", hba1c: "", heartRate: "", temperature: "", spo2: "", targetWeight: "", fev: "", bpSys: "", bpDia: "", counseling: "" });
+      resetSummaryCounseling();
       setShowSummary(false);
       await loadTestHistory();
     } else {
@@ -320,6 +392,11 @@ export default function StationPage() {
         preConfirm = () => {
           const t = (document.getElementById("editText") as HTMLTextAreaElement)?.value.trim();
           if (!t) { Swal.showValidationMessage("Please enter notes."); return; }
+          const enforced = enforceCounselingLimit(t);
+          if (enforced.truncated || enforced.value !== t) {
+            Swal.showValidationMessage(COUNSELING_LIMIT_MESSAGE);
+            return;
+          }
           return { value_text: t, unit: "-" };
         };
       } else {
@@ -366,7 +443,7 @@ export default function StationPage() {
     setTestValue("");
     setTestValueSys("");
     setTestValueDia("");
-    setTestTextValue("");
+    resetCounseling();
   };
 
   const handleClear = () => {
@@ -383,6 +460,8 @@ export default function StationPage() {
         setTestHistory([]);
         setStationSelect("");
         setShowSummary(false);
+        resetCounseling();
+        resetSummaryCounseling();
       }
     });
   };
@@ -447,7 +526,13 @@ export default function StationPage() {
                     ) : stationSelect === "Counseling" ? (
                       <div>
                         <label className="form-label">Notes</label>
-                        <textarea className="form-control" rows={3} value={testTextValue} onChange={(e) => setTestTextValue(e.target.value)} placeholder={currentTestConfig?.placeholder}></textarea>
+                        <textarea className="form-control" rows={3} value={counselingValue} onChange={onCounselingChange} ref={counselingRef} placeholder={currentTestConfig?.placeholder}></textarea>
+                        <div className="d-flex justify-content-between">
+                          <span className="form-text">Maximum {COUNSELING_MAX_LINES} lines × {COUNSELING_MAX_CHARS} characters per line</span>
+                          <span className="form-text">
+                            {counselingStatus(counselingValue).lineCount}/{COUNSELING_MAX_LINES} lines · {counselingStatus(counselingValue).currentChars}/{COUNSELING_MAX_CHARS}
+                          </span>
+                        </div>
                       </div>
                     ) : (
                       <div>
@@ -523,7 +608,13 @@ export default function StationPage() {
                         </div>
                         <div className="col-12">
                           <label className="form-label">Counseling Notes</label>
-                          <textarea className="form-control" rows={3} name="counseling" value={summary.counseling} onChange={handleSummaryChange}></textarea>
+                          <textarea className="form-control" rows={3} name="counseling" value={summaryCounselingValue} onChange={onSummaryCounselingChange} ref={summaryCounselingRef}></textarea>
+                          <div className="d-flex justify-content-between">
+                            <span className="form-text">Maximum {COUNSELING_MAX_LINES} lines × {COUNSELING_MAX_CHARS} characters per line</span>
+                            <span className="form-text">
+                              {counselingStatus(summaryCounselingValue).lineCount}/{COUNSELING_MAX_LINES} lines · {counselingStatus(summaryCounselingValue).currentChars}/{COUNSELING_MAX_CHARS}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <button type="submit" className="btn btn-success mt-3">Save Daily Summary</button>
