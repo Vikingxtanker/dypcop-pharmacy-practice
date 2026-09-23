@@ -51,8 +51,11 @@ export default function RootLayout({
            noModule
           src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"
         ></script>
-        {/* Favicon */}
-        <link rel="icon" type="image/png" href="/assets/DYP_LOGO_RED.jpg" />
+        {/* Favicons */}
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+        <link rel="manifest" href="/site.webmanifest" />
 
         {/* Structured Data */}
         <script
