@@ -10,6 +10,20 @@ import Swal from "sweetalert2";
 const APPOINTMENT_DATE = "2026-09-25";
 const APPOINTMENT_DATE_LABEL = "25 September 2026";
 
+const EMAILJS_PUBLIC_KEY = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
+const EMAILJS_SERVICE_ID = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
+const EMAILJS_TEMPLATE_ID = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
+
+let emailjsInitialized = false;
+
+const ensureEmailJsInitialized = (): void => {
+  if (emailjsInitialized) return;
+  if (EMAILJS_PUBLIC_KEY) {
+    emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+  }
+  emailjsInitialized = true;
+};
+
 const normalizePhone = (value: string): string => {
   let digits = value.replace(/[\s\-()]/g, "");
   if (digits.startsWith("+91")) digits = digits.slice(3);
@@ -70,6 +84,7 @@ export default function AppointmentPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     const { name, email, phone, organization, timeslot } = formData;
 
     const phoneError = validateField("phone", phone);
@@ -103,43 +118,62 @@ export default function AppointmentPage() {
     });
 
     try {
-      const { error } = await supabase.from("appointments").upsert({
-        id: name,
-        name: name.trim(),
-        email: email.trim(),
-        phone: normalizePhone(phone),
-        organization,
-        appointment_date: APPOINTMENT_DATE,
-        timeslot,
-        timestamp: new Date().toISOString(),
-      });
-
-      if (error) throw error;
-
-      await emailjs.send(
-        "service_fvowxi8",
-        "template_n6j8enq",
-        {
-          to_name: name,
-          to_email: email,
+      const { data, error: insertError } = await supabase
+        .from("appointments")
+        .insert({
+          id: crypto.randomUUID(),
+          name: name.trim(),
+          email: email.trim(),
           phone: normalizePhone(phone),
           organization,
           appointment_date: APPOINTMENT_DATE,
           timeslot,
-        }
-      );
+          timestamp: new Date().toISOString(),
+        })
+        .select()
+        .single();
 
+      if (insertError || !data) throw insertError ?? new Error("Appointment insert failed.");
+
+      let emailSent = false;
+      if (EMAILJS_PUBLIC_KEY && EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID) {
+        try {
+          ensureEmailJsInitialized();
+          const templateParams = {
+            to_name: data.name,
+            appointment_date: APPOINTMENT_DATE_LABEL,
+            timeslot: data.timeslot,
+            organization: data.organization,
+            phone: data.phone,
+            to_email: data.email,
+          };
+          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+          emailSent = true;
+        } catch (emailError) {
+          console.error("Appointment confirmation email failed:", emailError);
+        }
+      } else {
+        console.error(
+          "Appointment confirmation email skipped: EmailJS is not configured. " +
+            "Missing NEXT_PUBLIC_EMAILJS_PUBLIC_KEY, NEXT_PUBLIC_EMAILJS_SERVICE_ID, or " +
+            "NEXT_PUBLIC_EMAILJS_TEMPLATE_ID. The appointment was still booked successfully."
+        );
+      }
+
+      setFormData({ name: "", timeslot: "", phone: "", email: "", organization: "" });
+      setErrors({});
       Swal.fire({
         icon: "success",
         title: "Appointment Booked!",
-        text: `Your appointment is scheduled for ${APPOINTMENT_DATE_LABEL}. A confirmation email has been sent.`,
-      }).then(() => {
-        setFormData({ name: "", timeslot: "", phone: "", email: "", organization: "" });
-        setErrors({});
+        text: `Appointment booked successfully for ${APPOINTMENT_DATE_LABEL}. Slot: ${timeslot}. ${
+          emailSent
+            ? "A confirmation email has been sent."
+            : "Confirmation email could not be sent."
+        }`,
       });
     } catch (error) {
       console.error("Error submitting appointment:", error);
-      Swal.fire("Error", "Something went wrong. Try again.", "error");
+      Swal.fire("Error", "Unable to book the appointment. Please try again.", "error");
     } finally {
       setLoading(false);
     }
@@ -211,7 +245,7 @@ export default function AppointmentPage() {
                 </div>
                 <div className="text-center">
                   <button type="submit" className="btn btn-primary px-5" disabled={loading}>
-                    {loading ? "Booking..." : "Book Appointment"}
+                    {loading ? "Booking Appointment..." : "Book Appointment"}
                   </button>
                 </div>
               </form>
