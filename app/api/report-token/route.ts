@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { mintReportToken } from "@/lib/reports/report-token";
+import { normalizeIncludedTests } from "@/lib/reports/patient-report-data";
 
 export const runtime = "nodejs";
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function POST(request: NextRequest) {
-  let body: { patientId?: unknown; dateKey?: unknown };
+  let body: { patientId?: unknown; dateKey?: unknown; includedTests?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -18,6 +19,17 @@ export async function POST(request: NextRequest) {
   const dateKey = typeof body.dateKey === "string" ? body.dateKey.trim() : "";
   if (!patientId || !DATE_KEY_RE.test(dateKey)) {
     return NextResponse.json({ error: "patientId and dateKey (YYYY-MM-DD) are required" }, { status: 400 });
+  }
+
+  let includedTests: string[] | null = null;
+  if (body.includedTests !== undefined) {
+    includedTests = normalizeIncludedTests(body.includedTests);
+    if (includedTests === null) {
+      return NextResponse.json({ error: "includedTests must be an array of known test identifiers" }, { status: 400 });
+    }
+    if (includedTests.length === 0) {
+      return NextResponse.json({ error: "Select at least one test to generate the report." }, { status: 400 });
+    }
   }
 
   const supabase = createClient(
@@ -34,6 +46,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
 
-  const token = mintReportToken({ patientId, dateKey });
+  const token = mintReportToken(includedTests ? { patientId, dateKey, includedTests } : { patientId, dateKey });
   return NextResponse.json({ token });
 }

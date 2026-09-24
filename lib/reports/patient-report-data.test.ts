@@ -3,11 +3,14 @@ import assert from "node:assert/strict";
 import {
   buildHealthScreeningReportData,
   demoReportData,
+  getAvailableReportTests,
   inferBpStatus,
   inferTestStatus,
+  normalizeIncludedTests,
   resultStatusClass,
   resultStatusLabel,
   resultStatusTone,
+  type ScreeningTestRecord,
 } from "./patient-report-data";
 
 const patient = {
@@ -70,6 +73,99 @@ test("Blood Pressure falls back to the text row when no pairing exists", () => {
   const bp = data.laboratoryResults.find((r) => r.test === "Blood Pressure");
   assert.equal(bp?.result, "160/100 mmHg");
   assert.equal(bp?.status, "high");
+});
+
+const FULL_DAY: ScreeningTestRecord[] = [
+  { test_type: "Hemoglobin", value_numeric: 14.2, value_text: null, unit: "g/dL", created_at: "2026-09-25T02:00:00Z" },
+  { test_type: "RBG", value_numeric: 96, value_text: null, unit: "mg/dL", created_at: "2026-09-25T02:01:00Z" },
+  { test_type: "Systolic", value_numeric: 138, value_text: null, unit: null, created_at: "2026-09-25T02:02:00Z" },
+  { test_type: "Diastolic", value_numeric: 86, value_text: null, unit: null, created_at: "2026-09-25T02:03:00Z" },
+  { test_type: "Heart Rate", value_numeric: 89, value_text: null, unit: null, created_at: "2026-09-25T02:04:00Z" },
+  { test_type: "SpO2", value_numeric: 99, value_text: null, unit: null, created_at: "2026-09-25T02:05:00Z" },
+  { test_type: "Counseling", value_text: "Keep doses consistent.", value_numeric: null, unit: null, created_at: "2026-09-25T02:06:00Z" },
+];
+
+test("all available tests selected -> all rows appear (no counseling checkbox)", () => {
+  const options = getAvailableReportTests(FULL_DAY);
+  const allIds = options.map((o) => o.id);
+  assert.equal(allIds.includes("Counseling"), false);
+  assert.equal(options.some((o) => o.id === "BP" && o.label === "Blood Pressure"), true);
+  const data = buildHealthScreeningReportData(patient, FULL_DAY, "2026-09-25", allIds);
+  assert.equal(data.laboratoryResults.length, options.length);
+  for (const option of options) {
+    assert.equal(data.laboratoryResults.some((r) => r.test === option.label), true);
+  }
+});
+
+test("one test excluded -> that row is absent, other rows remain", () => {
+  const allIds = getAvailableReportTests(FULL_DAY).map((o) => o.id);
+  const data = buildHealthScreeningReportData(patient, FULL_DAY, "2026-09-25", allIds.filter((id) => id !== "Hemoglobin"));
+  const labels = data.laboratoryResults.map((r) => r.test);
+  assert.equal(labels.includes("Hemoglobin (Hb)"), false);
+  assert.equal(labels.includes("Random Blood Glucose (RBS)"), true);
+  assert.equal(labels.includes("Blood Pressure"), true);
+});
+
+test("multiple tests excluded -> only selected rows remain in canonical order", () => {
+  const data = buildHealthScreeningReportData(patient, FULL_DAY, "2026-09-25", ["RBG", "BP"]);
+  assert.deepEqual(
+    data.laboratoryResults.map((r) => r.test),
+    ["Random Blood Glucose (RBS)", "Blood Pressure"],
+  );
+});
+
+test("empty selection -> no laboratory rows (rejected at generation time)", () => {
+  const data = buildHealthScreeningReportData(patient, FULL_DAY, "2026-09-25", []);
+  assert.deepEqual(data.laboratoryResults, []);
+});
+
+test("unknown includedTests identifiers never create arbitrary rows", () => {
+  assert.deepEqual(normalizeIncludedTests(["NotARealTest", "Hemoglobin", "NotARealTest"]), ["Hemoglobin"]);
+  assert.deepEqual(normalizeIncludedTests(["TotallyFake"]), []);
+  const data = buildHealthScreeningReportData(patient, FULL_DAY, "2026-09-25", ["TotallyFake"]);
+  assert.deepEqual(data.laboratoryResults, []);
+});
+
+test("includedTests input validation rejects non-arrays and non-strings", () => {
+  assert.equal(normalizeIncludedTests("Hemoglobin"), null);
+  assert.equal(normalizeIncludedTests(42), null);
+  assert.equal(normalizeIncludedTests(["Hemoglobin", 42]), null);
+  assert.equal(normalizeIncludedTests(undefined), null);
+  assert.equal(normalizeIncludedTests(null), null);
+  assert.deepEqual(normalizeIncludedTests([]), []);
+});
+
+test("duplicate same-type measurements -> one checkbox and one report row, latest wins", () => {
+  const records: ScreeningTestRecord[] = [
+    { test_type: "HbA1c", value_numeric: 6.2, value_text: null, unit: "%", created_at: "2026-09-25T02:10:00Z" },
+    { test_type: "HbA1c", value_numeric: 5.7, value_text: null, unit: "%", created_at: "2026-09-25T01:10:00Z" },
+  ];
+  const options = getAvailableReportTests(records);
+  assert.equal(options.length, 1);
+  assert.equal(options[0].id, "HbA1c");
+  assert.equal(options[0].label, "Glycated Hemoglobin (HbA1c)");
+  const data = buildHealthScreeningReportData(patient, records, "2026-09-25", ["HbA1c"]);
+  assert.deepEqual(data.laboratoryResults.map((r) => r.test), ["Glycated Hemoglobin (HbA1c)"]);
+  assert.equal(data.laboratoryResults[0].result, "6.2 %");
+});
+
+test("BP composite stays one selectable option and one report row", () => {
+  const records: ScreeningTestRecord[] = [
+    { test_type: "Systolic", value_numeric: 138, value_text: null, unit: null, created_at: "2026-09-25T02:02:00Z" },
+    { test_type: "Diastolic", value_numeric: 86, value_text: null, unit: null, created_at: "2026-09-25T02:03:00Z" },
+  ];
+  const options = getAvailableReportTests(records);
+  assert.equal(options.filter((o) => o.id === "BP").length, 1);
+  assert.equal(options.length, 1);
+  const data = buildHealthScreeningReportData(patient, records, "2026-09-25", ["BP"]);
+  assert.deepEqual(data.laboratoryResults.map((r) => r.test), ["Blood Pressure"]);
+  assert.equal(data.laboratoryResults[0].result, "138/86 mmHg");
+});
+
+test("legacy: omitted includedTests includes all available tests", () => {
+  const data = buildHealthScreeningReportData(patient, FULL_DAY, "2026-09-25");
+  assert.equal(data.laboratoryResults.length, getAvailableReportTests(FULL_DAY).length);
+  assert.equal(data.counselingPoints[0], "Keep doses consistent.");
 });
 
 test("counseling is split by lines and never truncated", () => {

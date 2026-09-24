@@ -34,6 +34,9 @@ export async function GET(request: NextRequest) {
   if (!payload || !DATE_KEY_RE.test(payload.dateKey)) {
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
   }
+  if (payload.includedTests && payload.includedTests.length === 0) {
+    return NextResponse.json({ error: "Select at least one test to generate the report." }, { status: 400 });
+  }
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || "",

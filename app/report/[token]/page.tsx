@@ -45,7 +45,7 @@ export default async function OnlineReportPage({ params }: ReportPageProps) {
     .lt("created_at", end)
     .order("created_at", { ascending: false });
 
-  const data = buildHealthScreeningReportData(patient, (records || []) as ScreeningTestRecord[], payload.dateKey);
+  const data = buildHealthScreeningReportData(patient, (records || []) as ScreeningTestRecord[], payload.dateKey, payload.includedTests);
   const assets = await resolveReportAssets(data);
 
   return (

@@ -38,3 +38,8 @@ body {
     transform: rotate(360deg);
   }
 }
+
+.rp-test-picker--busy {
+  opacity: 0.6;
+  pointer-events: none;
+}

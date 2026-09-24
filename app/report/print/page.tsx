@@ -37,7 +37,7 @@ export default async function PrintReportPage({ searchParams }: PrintPageProps) 
     .lt("created_at", end)
     .order("created_at", { ascending: false });
 
-  const data = buildHealthScreeningReportData(patient, (records || []) as ScreeningTestRecord[], payload.dateKey);
+  const data = buildHealthScreeningReportData(patient, (records || []) as ScreeningTestRecord[], payload.dateKey, payload.includedTests);
   data.onlineReportUrl = `${getReportOrigin()}/report/${token}`;
   const assets = await resolveReportAssets(data);
 

@@ -11,6 +11,40 @@ test("mint -> redeem roundtrip preserves payload", () => {
   assert.deepEqual(payload, { patientId: "HSC-P-00127", dateKey: "2026-09-25" });
 });
 
+test("new token preserves includedTests through sign/verify", () => {
+  process.env.REPORT_TOKEN_SECRET = "test-secret";
+  const includedTests = ["Hemoglobin", "RBG", "BP"];
+  const token = mintReportToken({ patientId: "P1", dateKey: "2026-09-25", includedTests });
+  assert.deepEqual(redeemReportToken(token), { patientId: "P1", dateKey: "2026-09-25", includedTests });
+});
+
+test("legacy token without includedTests redeems as include-all (undefined)", () => {
+  process.env.REPORT_TOKEN_SECRET = "test-secret";
+  const token = mintReportToken({ patientId: "P1", dateKey: "2026-09-25" });
+  const payload = redeemReportToken(token);
+  assert.deepEqual(payload, { patientId: "P1", dateKey: "2026-09-25" });
+  assert.equal(payload?.includedTests, undefined);
+});
+
+test("redeem normalizes includedTests; rejects malformed values", () => {
+  process.env.REPORT_TOKEN_SECRET = "test-secret";
+  const cleaned = mintReportToken({
+    patientId: "P1",
+    dateKey: "2026-09-25",
+    includedTests: ["Hemoglobin", "Bogus", "RBG", "Bogus"],
+  });
+  assert.deepEqual(redeemReportToken(cleaned), { patientId: "P1", dateKey: "2026-09-25", includedTests: ["Hemoglobin", "RBG"] });
+
+  const empty = mintReportToken({ patientId: "P1", dateKey: "2026-09-25", includedTests: [] });
+  assert.deepEqual(redeemReportToken(empty), { patientId: "P1", dateKey: "2026-09-25", includedTests: [] });
+
+  const nonArray = mintReportToken({ patientId: "P1", dateKey: "2026-09-25", includedTests: "Hemoglobin" as unknown as string[] });
+  assert.equal(redeemReportToken(nonArray), null);
+
+  const nonStringEntry = mintReportToken({ patientId: "P1", dateKey: "2026-09-25", includedTests: ["Hemoglobin", 42] as unknown as string[] });
+  assert.equal(redeemReportToken(nonStringEntry), null);
+});
+
 test("token changes when the secret changes", () => {
   process.env.REPORT_TOKEN_SECRET = "secret-a";
   const tokenA = mintReportToken({ patientId: "P1", dateKey: "2026-09-25" });

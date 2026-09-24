@@ -81,6 +81,12 @@ export interface ScreeningTestRecord {
   created_at: string;
 }
 
+/** One selectable test option for the report (canonical id + existing report label). */
+export interface ReportTestOption {
+  id: string;
+  label: string;
+}
+
 interface LabColumn {
   type: string;
   label: string;
@@ -100,6 +106,14 @@ const LAB_TABLE: LabColumn[] = [
   { type: "Target Weight", label: "Target Weight" },
   { type: "FEV", label: "Forced Expiratory Volume (FEV1)" },
 ];
+
+/** Canonical ids of the single-measurement report rows, in report display order. */
+export const REPORT_LAB_TEST_IDS: readonly string[] = LAB_TABLE.map((col) => col.type);
+
+/** Canonical id of the composite Blood Pressure report row (Systolic/Diastolic pair or a BP record). */
+export const REPORT_BP_TEST_ID = "BP";
+
+const REPORTABLE_TEST_ID_SET = new Set<string>([...REPORT_LAB_TEST_IDS, REPORT_BP_TEST_ID]);
 
 export const NORMAL_RANGES: Record<string, string> = {
   Hemoglobin: "Women: 12\u201316 g/dL\nMen: 13\u201318 g/dL\nChildren: 11\u201314 g/dL\nPregnant: 11\u201314 g/dL",
@@ -178,26 +192,31 @@ const displayValue = (rec: ScreeningTestRecord): string => {
   return "";
 };
 
-export function buildHealthScreeningReportData(
-  patientRow: PatientReportRow,
-  records: ScreeningTestRecord[],
-  dateKey: string,
-): PatientHealthScreeningReportData {
+/**
+ * Builds the reportable Laboratory Results rows (and their canonical ids) for the
+ * day's screening records. Latest-per-type wins; Systolic/Diastolic pairing or a BP
+ * record collapses to the single "Blood Pressure" row. This is the single source of
+ * truth for both the checkbox options and the rows rendered in the report.
+ */
+function buildLabRows(records: ScreeningTestRecord[]): Array<{ id: string; row: LaboratoryResultRow }> {
   const latest = latestByType(records);
+  const rows: Array<{ id: string; row: LaboratoryResultRow }> = [];
 
-  const laboratoryResults: LaboratoryResultRow[] = [];
   for (const col of LAB_TABLE) {
     const rec = latest.get(col.type);
     if (!rec) continue;
     const value = displayValue(rec);
     const unit = rec.unit || "";
     if (!value && rec.test_type !== "Counseling") continue;
-    laboratoryResults.push({
-      test: col.label,
-      result: value ? (unit ? `${value} ${unit}` : value) : "N/A",
-      unit,
-      normalRange: NORMAL_RANGES[col.type],
-      status: inferTestStatus(col.type, rec.value_numeric ?? (rec.value_text ? value : null)),
+    rows.push({
+      id: col.type,
+      row: {
+        test: col.label,
+        result: value ? (unit ? `${value} ${unit}` : value) : "N/A",
+        unit,
+        normalRange: NORMAL_RANGES[col.type],
+        status: inferTestStatus(col.type, rec.value_numeric ?? (rec.value_text ? value : null)),
+      },
     });
   }
 
@@ -208,23 +227,74 @@ export function buildHealthScreeningReportData(
     const sVal = sys ? displayValue(sys) : "N/A";
     const dVal = dia ? displayValue(dia) : "N/A";
     const label = `${sVal}/${dVal}`;
-    laboratoryResults.push({
-      test: "Blood Pressure",
-      result: `${label} mmHg`,
-      unit: "mmHg",
-      normalRange: NORMAL_RANGES.BP,
-      status: inferBpStatus(label),
+    rows.push({
+      id: REPORT_BP_TEST_ID,
+      row: {
+        test: "Blood Pressure",
+        result: `${label} mmHg`,
+        unit: "mmHg",
+        normalRange: NORMAL_RANGES.BP,
+        status: inferBpStatus(label),
+      },
     });
   } else if (bpRec) {
     const label = bpRec.value_text || displayValue(bpRec);
-    laboratoryResults.push({
-      test: "Blood Pressure",
-      result: label ? `${label} mmHg` : "N/A",
-      unit: "mmHg",
-      normalRange: NORMAL_RANGES.BP,
-      status: inferBpStatus(label),
+    rows.push({
+      id: REPORT_BP_TEST_ID,
+      row: {
+        test: "Blood Pressure",
+        result: label ? `${label} mmHg` : "N/A",
+        unit: "mmHg",
+        normalRange: NORMAL_RANGES.BP,
+        status: inferBpStatus(label),
+      },
     });
   }
+
+  return rows;
+}
+
+export const isTestIncluded = (id: string, includedTests?: readonly string[]): boolean =>
+  includedTests === undefined || includedTests.includes(id);
+
+/** Reportable test checkboxes present for a patient/date's records (one per report row). */
+export function getAvailableReportTests(records: ScreeningTestRecord[]): ReportTestOption[] {
+  return buildLabRows(records).map(({ id, row }) => ({ id, label: row.test }));
+}
+
+/**
+ * Validates untrusted client input against the known reportable test ids.
+ * Returns null when the value is not a string array; otherwise returns the
+ * deduplicated list of known ids (unknown strings are ignored). A null result
+ * means the value is invalid — it is treated as "include all" only when the
+ * value was not supplied at all by the caller.
+ */
+export function normalizeIncludedTests(value: unknown): string[] | null {
+  if (value === undefined || value === null) return null;
+  if (!Array.isArray(value)) return null;
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") return null;
+    const id = entry.trim();
+    if (!REPORTABLE_TEST_ID_SET.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
+  }
+  return normalized;
+}
+
+export function buildHealthScreeningReportData(
+  patientRow: PatientReportRow,
+  records: ScreeningTestRecord[],
+  dateKey: string,
+  includedTests?: readonly string[],
+): PatientHealthScreeningReportData {
+  const latest = latestByType(records);
+
+  const laboratoryResults = buildLabRows(records)
+    .filter(({ id }) => isTestIncluded(id, includedTests))
+    .map(({ row }) => row);
 
   const counselingRec = latest.get("Counseling");
   const rawCounseling = counselingRec

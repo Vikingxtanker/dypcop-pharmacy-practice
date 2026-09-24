@@ -9,6 +9,8 @@ import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { istDateKey, istDayRangeUtc, formatScreeningDate, formatScreeningDateShort } from "@/lib/utils";
 import { downloadHealthScreeningReportPdf } from "@/lib/reports/report-pdf-download";
+import { getAvailableReportTests, type ReportTestOption } from "@/lib/reports/patient-report-data";
+import ReportTestsPicker from "@/components/reports/ReportTestsPicker";
 import Swal from "sweetalert2";
 
 interface PatientRow {
@@ -66,6 +68,9 @@ export default function PatientReportPage() {
   const [sessions, setSessions] = useState<ScreeningSession[]>([]);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [tests, setTests] = useState<Record<string, { value: string; raw: TestRecord }>>({});
+  const [availableTests, setAvailableTests] = useState<ReportTestOption[]>([]);
+  const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
+  const [loadingSessionDate, setLoadingSessionDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingReport, setLoadingReport] = useState(false);
   const [preparing, setPreparing] = useState(false);
@@ -147,7 +152,10 @@ export default function PatientReportPage() {
     setPatient(null);
     setSessions([]);
     setSelectedDateKey(null);
+    setLoadingSessionDate(null);
     setTests({});
+    setAvailableTests([]);
+    setSelectedTestIds([]);
 
     try {
       const { data: patientData, error: patientError } = await supabase
@@ -184,8 +192,9 @@ export default function PatientReportPage() {
   };
 
   const loadSessionReport = async (dateKey: string) => {
-    if (!patient) return;
+    if (!patient) return null;
     setLoadingReport(true);
+    setLoadingSessionDate(dateKey);
     setError(null);
     try {
       const { start, end } = istDayRangeUtc(dateKey);
@@ -201,24 +210,56 @@ export default function PatientReportPage() {
 
       const records = (testData as TestRecord[]) || [];
       const latest = populateLatestTests(records, patient);
+      const availableTests = getAvailableReportTests(records);
       setTests(latest);
+      setAvailableTests(availableTests);
+      setSelectedTestIds(availableTests.map((t) => t.id));
       setSelectedDateKey(dateKey);
-      return latest;
+      return { availableTests };
     } catch (err) {
       console.error("Error loading report:", err);
       setError("Could not load the report for this screening date. Please try again.");
       return null;
     } finally {
       setLoadingReport(false);
+      setLoadingSessionDate(null);
     }
   };
+
+  const toggleTest = (id: string) => {
+    setSelectedTestIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
+  };
+
+  const selectAllTests = () => setSelectedTestIds(availableTests.map((t) => t.id));
+
+  const clearAllTests = () => setSelectedTestIds([]);
 
   const handlePrint = async (dateKey: string) => {
     if (!patient || preparing) return;
     setPreparing(true);
     setError(null);
     try {
-      await downloadHealthScreeningReportPdf({ patientId: patient.id, dateKey });
+      let includedTests: string[];
+      if (selectedDateKey === dateKey) {
+        if (availableTests.length === 0) {
+          setError("No reportable tests are available for this patient on the selected date.");
+          return;
+        }
+        includedTests = selectedTestIds;
+      } else {
+        const result = await loadSessionReport(dateKey);
+        if (!result) return;
+        if (result.availableTests.length === 0) {
+          setError("No reportable tests are available for this patient on the selected date.");
+          return;
+        }
+        includedTests = result.availableTests.map((t) => t.id);
+      }
+      if (includedTests.length === 0) {
+        setError("Select at least one test to generate the report.");
+        return;
+      }
+      await downloadHealthScreeningReportPdf({ patientId: patient.id, dateKey, includedTests });
     } catch (err) {
       console.error("Error downloading report:", err);
       Swal.fire("Error", err instanceof Error ? err.message : "Could not download the report. Please try again.", "error");
@@ -275,6 +316,40 @@ export default function PatientReportPage() {
           {patient && sessions.length > 0 && (
             <div className="bg-white p-4 shadow rounded mb-4">
               <h3 className="mb-3">Screening Reports</h3>
+
+              {selectedDateKey && !loadingReport && (
+                <div className="border rounded p-3 mb-3">
+                  <h4 className="h5 mb-1">Tests to Include</h4>
+                  <p className="text-muted small mb-3">Select the tests you want to include in the report.</p>
+                  {availableTests.length === 0 ? (
+                    <p className="text-muted small mb-0">
+                      No reportable tests are available for this patient on the selected date.
+                    </p>
+                  ) : (
+                    <>
+                      <ReportTestsPicker
+                        options={availableTests}
+                        selectedIds={selectedTestIds}
+                        disabled={preparing}
+                        onToggle={toggleTest}
+                        onSelectAll={selectAllTests}
+                        onClearAll={clearAllTests}
+                      />
+                      {selectedTestIds.length === 0 && (
+                        <div className="text-danger small mt-2">Select at least one test to generate the report.</div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {loadingSessionDate && (
+                <div className="border rounded p-3 mb-3">
+                  <h4 className="h5 mb-1">Tests to Include</h4>
+                  <p className="text-muted small mb-0">Loading available tests...</p>
+                </div>
+              )}
+
               <div className="table-responsive">
                 <table className="table table-bordered table-hover align-middle">
                   <thead className="table-light">
@@ -298,7 +373,11 @@ export default function PatientReportPage() {
                           <button
                             className="btn btn-sm btn-outline-success rp-print-btn"
                             onClick={() => handlePrint(s.dateKey)}
-                            disabled={preparing}
+                            disabled={
+                              preparing ||
+                              (s.dateKey === selectedDateKey &&
+                                (availableTests.length === 0 || selectedTestIds.length === 0))
+                            }
                             aria-busy={preparing}
                             aria-label={preparing ? "Preparing report, please wait" : "Print report"}
                           >

@@ -1,6 +1,8 @@
 export interface ReportPdfTarget {
   patientId: string;
   dateKey: string;
+  /** Canonical reportable test ids to include; omitted means "include all". */
+  includedTests?: string[];
 }
 
 const DEFAULT_FILENAME = "health-screening-report.pdf";
@@ -42,7 +44,11 @@ export async function downloadHealthScreeningReportPdf(target: ReportPdfTarget):
   const tokenResponse = await fetch("/api/report-token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ patientId: target.patientId, dateKey: target.dateKey }),
+    body: JSON.stringify(
+      target.includedTests !== undefined
+        ? { patientId: target.patientId, dateKey: target.dateKey, includedTests: target.includedTests }
+        : { patientId: target.patientId, dateKey: target.dateKey },
+    ),
   });
   if (!tokenResponse.ok) {
     throw new Error("Could not prepare the report. Please try again.");
