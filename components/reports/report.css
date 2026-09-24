@@ -1,0 +1,922 @@
+/* =========================================================
+   Health Screening Report — A4 print stylesheet
+   Visual baseline: health-screening-report-reference-style.html
+
+   HOW TO CUSTOMIZE THE DESIGN
+   ---------------------------
+   1. Change colors, spacing, radii, fonts and page size at the
+      top under `:root` (design tokens).
+   2. Each report section has its own clearly-commented block
+      further down (Header, Title bar, Demographics,
+      Laboratory table, Watermark, Counseling, Footer, QR panel).
+   3. Components never hard-code colors/dimensions; everything
+      visual lives in this file.
+   ========================================================= */
+
+:root {
+  /* -------- Brand colors -------- */
+  --report-maroon: #741019;
+  --report-maroon-dark: #5c0b12;
+  --report-maroon-soft: #8e2931;
+  --report-blue: #244664;
+  --report-background: #fffdfb;
+  --report-soft-pink: #fbf0ef;
+  --report-border: #d8b8b9;
+  --report-muted: #5f6871;
+  --report-white: #ffffff;
+
+  /* -------- Typography (clinical lab report hierarchy) -------- */
+  --report-font-family: var(--report-font-family);
+  --report-font-title: 16pt; /* report main title */
+  --report-font-section: 14pt; /* section headings */
+  --report-font-body: 10.5pt; /* patient/test body data */
+  --report-font-label: 10pt; /* demographic field labels */
+  --report-font-value: 10.5pt; /* demographic field values */
+  --report-font-table: 10pt; /* laboratory table body */
+  --report-font-table-em: 10.5pt; /* laboratory result values */
+  --report-font-table-header: 10pt; /* laboratory column headers */
+  --report-font-caption: 9pt; /* captions / secondary info */
+  --report-font-footnote: 8.5pt; /* disclaimers / fine print */
+--report-line-body: 1.45;
+  --report-line-table: 1.3;
+  --report-line-counseling: 1.5;
+
+  /* -------- Page / A4 -------- */
+  --report-page-width: 210mm;
+  --report-page-height: 297mm;
+  --report-page-height-pdf: 288mm; /* printable body height (297mm - 9mm page-number footer) */
+  --report-page-padding-x: 6.3mm;
+  --report-section-gap: 4mm;
+  --report-content-gap: 3.5mm;
+
+  /* -------- Header card (compact) -------- */
+  --report-header-height: 36mm;
+  --report-header-margin-x: 3.5mm;
+  --report-header-margin-top: 5mm;
+  --report-header-padding: 1.8mm;
+  --report-header-radius: 8mm;
+  --report-header-border-width: 2px;
+  --report-logo-size: 26mm;
+  --report-logo-panel-radius: 3.5mm;
+  --report-logo-panel-border: 1.4px;
+  --report-header-wave-h: 13mm;
+  --report-header-wave-d: 4mm;
+
+  /* -------- Title bar (compact) -------- */
+  --report-title-height: 11mm;
+  --report-title-radius: 5.5mm;
+  --report-title-margin-x: 3.7mm;
+  --report-title-margin-top: 2.5mm;
+  --report-title-icon: 5.2mm;
+
+  /* -------- Radii -------- */
+  --report-radius-sm: 3mm;
+  --report-radius: 4mm;
+
+  /* -------- Section headings (compact icons) -------- */
+  --report-section-icon: 7.2mm;
+  --report-section-icon-glyph: 4mm;
+
+  /* -------- Demographics -------- */
+  --report-demo-padding-y: 2.8mm;
+  --report-demo-padding-x: 5.5mm;
+  --report-demo-column-gap: 13mm;
+  --report-demo-row-gap: 1.4mm;
+  --report-demo-label-width: 28mm;
+  --report-demo-underline: #b7aeb0;
+  --report-demo-value: #243d55;
+
+  /* -------- Laboratory table -------- */
+  --report-table-border: #dac7c8;
+  --report-table-wrap-border: #8f7a7b;
+  --report-table-cell-pad-y: 2.2mm;
+  --report-range-text: #334a61;
+  /* Clinical result status colors (applied to the RESULT value only) */
+  --report-status-normal: #16803c;
+  --report-status-low: #b77900;
+  --report-status-high: #c62828;
+  --report-status-neutral: #244664;
+  --report-watermark-opacity: 0.055;
+  --report-watermark-size: 46mm;
+
+  /* -------- Counseling -------- */
+  --report-counseling-text: #2d4359;
+  --report-counseling-pad: 3mm 4.5mm;
+
+  /* -------- Footer (compact) -------- */
+  --report-footer-height: 25mm;
+  --report-footer-gap-top: 6mm;
+  --report-footer-wave-back-h: 18mm;
+  --report-footer-wave-back-d: 8mm;
+  --report-footer-wave-mid-h: 13mm;
+  --report-footer-wave-mid-d: 4mm;
+  --report-footer-wave-front-h: 12mm;
+  --report-footer-wave-front-d: 6mm;
+  --report-wave-mid: #d8a4a7;
+  --report-wave-front: #fbefed;
+
+  /* -------- QR panel (compact) -------- */
+  --report-qr-size: 18mm;
+  --report-qr-radius: 2mm;
+
+  /* -------- Browser preview chrome (never in the PDF) -------- */
+  --report-viewer-dark: #171717;
+  --report-viewer-bg: #ddd;
+  --report-debug-outline: 1px dashed rgba(220, 20, 60, 0.4);
+  --report-guide-line: 1px dashed rgba(0, 0, 0, 0.4);
+  --report-preview-pad-y: 16px;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------
+   PDF document shell (body when rendered via /report/print)
+   --------------------------------------------------------- */
+body.rp-pdf-body,
+.rp-pdf-shell {
+  margin: 0;
+  background: var(--report-white);
+  color: var(--report-blue);
+  font-family: var(--report-font-family);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Neutralize marketing-site leakage (adr.css/style.css) that applies
+   body/main paddings & margins to the print shell and would push the
+   A4 sheet off the printable area (-> stray blank second page). */
+html:has(> body > main.rp-pdf-shell),
+body:has(> main.rp-pdf-shell) {
+  margin: 0;
+  padding: 0;
+}
+
+body:has(> main.rp-pdf-shell) {
+  display: block;
+  min-height: 0;
+}
+
+main.rp-pdf-shell {
+  padding: 0;
+  display: block;
+  flex: none;
+}
+
+body.rp-pdf-body .rp-sheet,
+.rp-pdf-shell .rp-sheet {
+  margin: 0;
+  box-shadow: none;
+  min-height: var(--report-page-height-pdf);
+}
+
+/* ---------------------------------------------------------
+   Browser preview shell
+   --------------------------------------------------------- */
+.rp-browser {
+  min-height: 100vh;
+}
+
+.rp-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--report-viewer-dark);
+  color: var(--report-white);
+  font-family: var(--report-font-family);
+}
+
+.rp-toolbar-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.rp-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rp-btn {
+  border: 0;
+  border-radius: 6px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  color: var(--report-white);
+  background: var(--report-maroon);
+}
+
+.rp-btn-secondary {
+  background: #3a3a3a;
+}
+
+.rp-btn.active {
+  background: var(--report-maroon-soft);
+}
+
+.rp-dev-chip {
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #ffe7a0;
+  text-transform: uppercase;
+}
+
+.rp-viewport {
+  position: relative;
+  background: var(--report-viewer-bg);
+  padding-bottom: 40px;
+  overflow-x: auto;
+  font-family: var(--report-font-family);
+  color: var(--report-blue);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Preview uses the SAME .rp-pdf-shell wrapper as the PDF, so what you
+   see in the browser is exactly what Playwright prints. */
+.rp-preview-shell {
+  position: relative;
+  padding: var(--report-preview-pad-y) 0;
+}
+
+.rp-preview-shell .rp-sheet {
+  margin: 0 auto;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.14);
+}
+
+/* Dev-only layout debug + A4 page-boundary guides (never printed) */
+.rp-debug .rp-sheet *,
+.rp-debug .rp-sheet {
+  outline: var(--report-debug-outline);
+}
+
+.rp-guides {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.rp-guide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: var(--report-guide-line);
+}
+
+@media print {
+  .rp-toolbar {
+    display: none !important;
+  }
+
+  .rp-viewport {
+    background: var(--report-white);
+    padding: 0;
+  }
+
+  .rp-preview-shell {
+    padding: 0;
+  }
+
+  .rp-preview-shell .rp-sheet {
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .rp-guides,
+  .rp-debug .rp-sheet *,
+  .rp-debug .rp-sheet {
+    outline: none !important;
+  }
+}
+
+/* ---------------------------------------------------------
+   Report sheet (A4)
+   --------------------------------------------------------- */
+.rp-sheet {
+  position: relative;
+  width: var(--report-page-width);
+  min-height: var(--report-page-height);
+  overflow: hidden;
+  background: var(--report-background);
+  font-family: var(--report-font-family);
+  color: var(--report-blue);
+  line-height: var(--report-line-body);
+}
+
+/* ---------------------------------------------------------
+   SECTION 1 — HEADER CARD
+   --------------------------------------------------------- */
+.rp-header {
+  position: relative;
+  margin: var(--report-header-margin-top) var(--report-header-margin-x) 0;
+  height: var(--report-header-height);
+  border: var(--report-header-border-width) solid var(--report-maroon);
+  border-radius: var(--report-header-radius);
+  padding: var(--report-header-padding);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 91% 21%, rgba(255, 255, 255, 0.85) 0 9%, transparent 9.5%),
+    radial-gradient(circle at 94% 34%, rgba(255, 255, 255, 0.6) 0 10%, transparent 10.5%),
+    linear-gradient(180deg, var(--report-background) 0%, #fffaf7 100%);
+  break-inside: avoid;
+}
+
+.rp-header::after {
+  content: "";
+  position: absolute;
+  left: -3%;
+  right: -2%;
+  bottom: calc(-1 * var(--report-header-wave-d));
+  height: var(--report-header-wave-h);
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  background: linear-gradient(180deg, transparent 0 16%, rgba(116, 16, 25, 0.06) 16% 21%, transparent 21% 100%);
+  border-top: 4px solid rgba(116, 16, 25, 0.12);
+  pointer-events: none;
+}
+
+.rp-header-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 34mm 1fr 33mm;
+  height: 100%;
+  align-items: center;
+}
+
+/* --- Logo panel (left, compact) --- */
+.rp-logo-panel {
+  width: var(--report-logo-size);
+  height: var(--report-logo-size);
+  justify-self: center;
+  border-radius: var(--report-logo-panel-radius);
+  background: linear-gradient(180deg, var(--report-background) 0%, #fffaf7 100%);
+  border: var(--report-logo-panel-border) solid var(--report-maroon);
+  outline: 1px solid rgba(116, 16, 25, 0.2);
+  display: grid;
+  place-items: center;
+  padding: 1.5mm;
+}
+
+.rp-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* --- Institution name (centre) --- */
+.rp-institution {
+  padding: 0 6mm;
+  border-left: 1.4px solid var(--report-maroon);
+  text-align: left;
+}
+
+.rp-college-name {
+  margin: 0;
+  color: var(--report-maroon-dark);
+  font-size: 15pt;
+  line-height: 0.95;
+  font-weight: 950;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+}
+
+.rp-akurdi {
+  margin-top: 0.6mm;
+  font-size: 10pt;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--report-maroon-dark);
+}
+
+.rp-address {
+  margin-top: 1.2mm;
+  font-size: 8pt;
+  line-height: 1.05;
+  font-weight: 700;
+  color: var(--report-maroon-dark);
+}
+
+.rp-separator {
+  margin: 1.2mm 0 1mm;
+  width: 82%;
+  border-top: 1px solid var(--report-maroon);
+}
+
+.rp-department {
+  font-size: 8.5pt;
+  line-height: 1.05;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--report-maroon-dark);
+}
+
+.rp-pharmd {
+  margin-top: 0.2mm;
+  font-size: 8pt;
+  line-height: 1.05;
+  font-weight: 900;
+  color: var(--report-maroon-dark);
+}
+
+/* --- Slogan (right, compact) --- */
+.rp-slogan {
+  position: relative;
+  height: var(--report-logo-size);
+  padding: 1.5mm 1.5mm 1.5mm 2.5mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--report-maroon);
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 800;
+  font-size: 11pt;
+  line-height: 1.05;
+  transform: rotate(-3deg);
+}
+
+.rp-slogan::after {
+  content: "";
+  position: absolute;
+  bottom: 1.8mm;
+  left: 20%;
+  width: 60%;
+  height: 2.2mm;
+  border-bottom: 1.2px solid var(--report-maroon);
+  border-radius: 50%;
+  transform: rotate(-3deg);
+}
+
+/* ---------------------------------------------------------
+   SECTION 2 — "HEALTH SCREENING REPORT" TITLE BAR
+   --------------------------------------------------------- */
+.rp-title-strip {
+  position: relative;
+  margin: var(--report-title-margin-top) var(--report-title-margin-x) 0;
+  height: var(--report-title-height);
+  border-radius: var(--report-title-radius);
+  background: linear-gradient(180deg, #76111b 0%, #6a0e16 100%);
+  color: var(--report-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3mm;
+  font-size: var(--report-font-title);
+  font-weight: 950;
+  letter-spacing: 0.01em;
+  break-inside: avoid;
+}
+
+.rp-title-strip::before,
+.rp-title-strip::after {
+  content: "";
+  width: 40mm;
+  border-top: 1.8px solid rgba(255, 255, 255, 0.95);
+}
+
+.rp-title-icon {
+  display: inline-flex;
+}
+
+.rp-title-icon svg {
+  width: var(--report-title-icon);
+  height: var(--report-title-icon);
+}
+
+/* ---------------------------------------------------------
+   Shared section layout
+   --------------------------------------------------------- */
+.rp-content {
+  position: relative;
+  padding: 0 var(--report-page-padding-x);
+  margin-top: var(--report-content-gap);
+  min-height: 172mm;
+}
+
+.rp-section {
+  position: relative;
+  margin-top: var(--report-section-gap);
+  padding: 0;
+}
+
+.rp-section:first-child {
+  margin-top: 0;
+}
+
+.rp-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  margin: 0;
+  color: var(--report-maroon);
+  font-size: var(--report-font-section);
+  font-weight: 950;
+  line-height: 1;
+  break-inside: avoid;
+  break-after: avoid;
+}
+
+.rp-section-icon {
+  width: var(--report-section-icon);
+  height: var(--report-section-icon);
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--report-white);
+  background: var(--report-maroon);
+}
+
+.rp-section-icon svg {
+  width: var(--report-section-icon-glyph);
+  height: var(--report-section-icon-glyph);
+}
+
+.rp-heading-line {
+  height: 0;
+  flex: 1;
+  border-top: 1.2px solid #8d3a40;
+  transform: translateY(1px);
+}
+
+.rp-muted {
+  color: var(--report-muted);
+}
+
+.rp-dash {
+  color: var(--report-muted);
+}
+
+/* ---------------------------------------------------------
+   SECTION 3 — DEMOGRAPHICS
+   --------------------------------------------------------- */
+.rp-demo-box {
+  margin-top: 2mm;
+  padding: var(--report-demo-padding-y) var(--report-demo-padding-x);
+  border: 1.2px solid var(--report-border);
+  border-radius: var(--report-radius);
+  background: linear-gradient(180deg, rgba(251, 240, 239, 0.82) 0%, rgba(255, 252, 251, 0.92) 100%);
+  break-inside: avoid;
+}
+
+.rp-demo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: var(--report-demo-column-gap);
+  row-gap: var(--report-demo-row-gap);
+}
+
+.rp-demo-field {
+  display: grid;
+  grid-template-columns: var(--report-demo-label-width) 1fr;
+  align-items: end;
+  min-width: 0;
+}
+
+.rp-demo-field.rp-demo-span {
+  grid-column: 1 / -1;
+}
+
+.rp-demo-label {
+  font-size: var(--report-font-label);
+  color: var(--report-blue);
+  font-weight: 600;
+}
+
+.rp-demo-value {
+  min-width: 0;
+  min-height: 5.4mm;
+  padding: 0 0.5mm 0.5mm;
+  border-bottom: 1px solid var(--report-demo-underline);
+  color: var(--report-demo-value);
+  font-size: var(--report-font-value);
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* ---------------------------------------------------------
+   SECTION 4 — LABORATORY TESTS
+   --------------------------------------------------------- */
+.rp-lab-wrap {
+  position: relative;
+  margin-top: 2.5mm;
+  border: 1.1px solid var(--report-table-wrap-border);
+  border-radius: var(--report-radius-sm);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+/* --- Watermark --- */
+.rp-watermark {
+  position: absolute;
+  left: 42%;
+  top: 48%;
+  transform: translate(-50%, -50%);
+  width: var(--report-watermark-size);
+  height: var(--report-watermark-size);
+  opacity: var(--report-watermark-opacity);
+  z-index: 0;
+  pointer-events: none;
+  object-fit: contain;
+}
+
+/* --- Laboratory table --- */
+.rp-lab-table {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  color: var(--report-blue);
+  font-size: var(--report-font-table);
+  line-height: var(--report-line-table);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.rp-lab-table thead {
+  display: table-header-group;
+}
+
+.rp-lab-table tr {
+  break-inside: avoid;
+}
+
+.rp-lab-table .rp-col-test {
+  width: 33%;
+}
+
+.rp-lab-table .rp-col-result {
+  width: 27%;
+}
+
+.rp-lab-table .rp-col-range {
+  width: 40%;
+}
+
+.rp-lab-table th {
+  background: var(--report-maroon);
+  color: var(--report-white);
+  padding: var(--report-table-cell-pad-y) 3mm;
+  font-size: var(--report-font-table-header);
+  font-weight: 900;
+  border-right: 1px solid rgba(255, 255, 255, 0.55);
+  text-align: left;
+}
+
+.rp-lab-table th:last-child {
+  border-right: 0;
+}
+
+.rp-lab-table th.rp-th-center {
+  text-align: center;
+}
+
+.rp-lab-table td {
+  padding: var(--report-table-cell-pad-y) 4.3mm;
+  vertical-align: middle;
+  border-top: 1px solid var(--report-table-border);
+  border-right: 1px solid var(--report-table-border);
+  background: rgba(255, 252, 251, 0.76);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.rp-lab-table td:last-child {
+  border-right: 0;
+}
+
+.rp-lab-table td.rp-result {
+  text-align: center;
+  font-size: var(--report-font-table-em);
+  font-weight: 900;
+}
+
+.rp-result--normal {
+  color: var(--report-status-normal);
+  font-weight: 900;
+}
+
+.rp-result--high {
+  color: var(--report-status-high);
+  font-weight: 900;
+}
+
+.rp-result--low {
+  color: var(--report-status-low);
+  font-weight: 900;
+}
+
+.rp-result--neutral {
+  color: var(--report-status-neutral);
+  font-weight: 850;
+}
+
+.rp-lab-table td.rp-range {
+  color: var(--report-range-text);
+}
+
+.rp-lab-empty {
+  padding: 4mm !important;
+  text-align: center;
+  color: var(--report-muted);
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------
+   SECTION 5 — PATIENT COUNSELING
+   --------------------------------------------------------- */
+.rp-counseling-box {
+  margin-top: 2.5mm;
+  min-height: 24mm;
+  border: 1.2px solid var(--report-border);
+  border-radius: var(--report-radius);
+  background: linear-gradient(180deg, #fff9f8 0%, #fffdfc 100%);
+  padding: var(--report-counseling-pad);
+  overflow-wrap: anywhere;
+}
+
+.rp-counseling-list {
+  margin: 0;
+  padding-left: 6mm;
+  color: var(--report-counseling-text);
+  font-size: var(--report-font-body);
+  line-height: var(--report-line-counseling);
+}
+
+.rp-counseling-list li {
+  margin-bottom: 2mm;
+  break-inside: avoid;
+}
+
+.rp-counseling-list li:last-child {
+  margin-bottom: 0;
+}
+
+.rp-counseling-empty {
+  margin: 0;
+  font-size: var(--report-font-body);
+}
+
+/* ---------------------------------------------------------
+   SECTION 6 — FOOTER (waves + thank-you + marks)
+   --------------------------------------------------------- */
+.rp-footer {
+  position: relative;
+  margin-top: var(--report-footer-gap-top);
+  height: var(--report-footer-height);
+  overflow: hidden;
+  text-align: center;
+  z-index: 1;
+  background: transparent;
+  break-inside: avoid;
+}
+
+.rp-wave-back {
+  position: absolute;
+  left: -7%;
+  right: -7%;
+  bottom: calc(-1 * var(--report-footer-wave-back-d));
+  height: var(--report-footer-wave-back-h);
+  background: var(--report-maroon);
+  border-radius: 50% 50% 0 0 / 28% 28% 0 0;
+}
+
+.rp-wave-mid {
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  bottom: calc(-1 * var(--report-footer-wave-mid-d));
+  height: var(--report-footer-wave-mid-h);
+  background: var(--report-wave-mid);
+  border-radius: 50% 50% 0 0 / 65% 65% 0 0;
+}
+
+.rp-wave-front {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: calc(-1 * var(--report-footer-wave-front-d));
+  height: var(--report-footer-wave-front-h);
+  background: var(--report-wave-front);
+  border-radius: 50% 50% 0 0 / 75% 75% 0 0;
+}
+
+.rp-footer-copy {
+  position: relative;
+  z-index: 3;
+  padding-top: 2mm;
+  color: var(--report-maroon);
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 800;
+}
+
+.rp-thankyou {
+  font-size: 11pt;
+  line-height: 1;
+}
+
+.rp-footer-college {
+  margin-top: 1.2mm;
+  font-size: var(--report-font-caption);
+  line-height: 1.05;
+}
+
+.rp-footer-mark {
+  margin-top: 2.2mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5mm;
+  color: var(--report-maroon);
+}
+
+.rp-footer-mark svg {
+  width: 4.5mm;
+  height: 4.5mm;
+}
+
+.rp-footer-rule {
+  width: 30mm;
+  border-top: 1px solid var(--report-maroon);
+}
+
+.rp-mortar {
+  position: absolute;
+  left: 6mm;
+  bottom: 4mm;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(116, 16, 25, 0.75);
+}
+
+.rp-mortar svg {
+  width: 7mm;
+  height: 7mm;
+}
+
+/* ---------------------------------------------------------
+   SECTION 7 — QR PANEL
+   --------------------------------------------------------- */
+.rp-qr-panel {
+  position: absolute;
+  right: 6mm;
+  bottom: 2mm;
+  z-index: 5;
+  width: max-content;
+  min-width: var(--report-qr-size);
+  padding: 1.5mm 2.5mm;
+  border-radius: var(--report-qr-radius);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(116, 16, 25, 0.45);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.rp-qr-panel img {
+  display: block;
+  width: var(--report-qr-size);
+  height: auto;
+  margin: 0 auto;
+}
+
+.rp-qr-label {
+  margin-top: 0.8mm;
+  color: var(--report-maroon-dark);
+  text-align: center;
+  white-space: nowrap;
+  font-size: var(--report-font-footnote);
+  line-height: 1.05;
+  font-weight: 850;
+}
+
+/* ---------------------------------------------------------
+   Continuation pages: compact repeated header is provided by
+   the Chromium print header/footer templates instead of a
+   fixed-position element (Chromium repeats fixed elements on
+   every page, which would overlap the full page-1 header).
+   --------------------------------------------------------- */

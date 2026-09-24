@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { formatIST } from "@/lib/utils";
 import Swal from "sweetalert2";
 
-const TIME_SLOTS = ["Morning (10 AM - 12 PM)", "Afternoon (2 PM - 5 PM)"];
+const TIME_SLOTS = ["Morning (11 AM - 12 PM)", "Afternoon (12 PM - 2 PM)"];
 const STATUS_OPTIONS = ["Pending", "Confirmed", "Cancelled"];
 const BASE_FIELDS = "id,name,phone,email,organization,appointment_date,timeslot,timestamp";
 const FULL_FIELDS = `${BASE_FIELDS},status`;

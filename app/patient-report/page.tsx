@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import HssNavbar from "@/components/layout/HssNavbar";
 import Footer from "@/components/layout/Footer";
@@ -89,7 +90,20 @@ export default function PatientReportPage() {
   const [pdfLib, setPdfLib] = useState<typeof import("pdf-lib") | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const downloadInFlight = useRef(false);
+
+  const triggerPdfDownload = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  };
 
   useEffect(() => {
     if (!user || (user.role !== "admin" && user.role !== "documentation" && user.role !== "station")) {
@@ -237,17 +251,49 @@ export default function PatientReportPage() {
     }
   };
 
-  const handlePrint = async (dateKey: string) => {
+  const handlePrintLegacy = async (dateKey: string) => {
     if (!patient) return;
     let testsData = tests;
     if (selectedDateKey !== dateKey) {
       const latest = await loadSessionReport(dateKey);
       if (latest) testsData = latest;
     }
-    await generatePDF(dateKey, testsData);
+    await generatePDFLegacy(dateKey, testsData);
   };
 
-  const generatePDF = async (dateKey: string, testsData: Record<string, { value: string; raw: TestRecord }> = {}) => {
+  const downloadNewReport = async (dateKey: string) => {
+    if (!patient) return;
+    if (downloadInFlight.current) {
+      Swal.fire("Please wait", "A report download is already in progress.", "info");
+      return;
+    }
+    downloadInFlight.current = true;
+    setIsGeneratingReport(true);
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 90000);
+      const res = await fetch("/api/report-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientId: patient.id, dateKey }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error(`Report API returned ${res.status}`);
+      const bytes = await res.arrayBuffer();
+      if (!bytes || bytes.byteLength === 0) throw new Error("Report API returned an empty PDF");
+      triggerPdfDownload(new Blob([bytes], { type: "application/pdf" }), `Health_Screening_Report_${patient.id}_${dateKey}.pdf`);
+      Swal.fire("Success", "Report PDF downloaded.", "success");
+    } catch (err) {
+      console.error("New report generation failed, falling back to legacy:", err);
+      await handlePrintLegacy(dateKey);
+    } finally {
+      setIsGeneratingReport(false);
+      downloadInFlight.current = false;
+    }
+  };
+
+  const generatePDFLegacy = async (dateKey: string, testsData: Record<string, { value: string; raw: TestRecord }> = {}) => {
     if (!patient || !pdfLib) {
       Swal.fire("Error", "No patient data available", "error");
       return;
@@ -302,11 +348,7 @@ export default function PatientReportPage() {
       drawMultiline(testVal("counselingPoints"), COORDS.counseling);
 
       const finalPdf = await pdfDoc.save();
-      const blob = new Blob([new Uint8Array(finalPdf)], { type: "application/pdf" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `Patient_Report_${patient.id}_${dateKey}.pdf`;
-      link.click();
+      triggerPdfDownload(new Blob([new Uint8Array(finalPdf)], { type: "application/pdf" }), `Patient_Report_${patient.id}_${dateKey}.pdf`);
     } catch (err) {
       console.error("PDF Generation Error:", err);
       Swal.fire("Error", "Could not generate PDF report", "error");
@@ -381,8 +423,21 @@ export default function PatientReportPage() {
                           <button className="btn btn-sm btn-outline-primary me-1" onClick={() => loadSessionReport(s.dateKey)}>
                             View Report
                           </button>
-                          <button className="btn btn-sm btn-outline-success" onClick={() => handlePrint(s.dateKey)}>
-                            Print
+                          <button
+                            className="btn btn-sm btn-outline-success rp-print-btn"
+                            onClick={() => downloadNewReport(s.dateKey)}
+                            disabled={isGeneratingReport}
+                            aria-busy={isGeneratingReport}
+                            aria-label={isGeneratingReport ? "Generating report PDF, please wait" : "Print report PDF"}
+                          >
+                            {isGeneratingReport ? (
+                              <>
+                                <Loader2 className="rp-print-spinner" aria-hidden="true" />
+                                Generating Report...
+                              </>
+                            ) : (
+                              "Print"
+                            )}
                           </button>
                         </td>
                       </tr>

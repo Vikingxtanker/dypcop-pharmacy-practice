@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Health Screening Report – DYP Example</title>
+
+<style>
+  /* =========================================================
+     A4 / PRINT SETUP
+     ========================================================= */
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  :root {
+    --maroon: #741019;
+    --maroon-dark: #5c0b12;
+    --maroon-soft: #8e2931;
+    --ink-blue: #244664;
+    --paper: #fffdfb;
+    --soft-pink: #fbf0ef;
+    --line-pink: #d8b8b9;
+    --line: #b7b0b1;
+    --muted: #5f6871;
+    --white: #ffffff;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: #ddd;
+    color: var(--ink-blue);
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    min-height: 100vh;
+  }
+
+  /* Browser toolbar — hidden when printing */
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    background: #171717;
+  }
+
+  .toolbar button {
+    border: 0;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    color: #fff;
+    background: var(--maroon);
+  }
+
+  .toolbar button.secondary {
+    background: #424242;
+  }
+
+  .report-page {
+    position: relative;
+    width: 210mm;
+    height: 297mm;
+    margin: 16px auto;
+    overflow: hidden;
+    background: var(--paper);
+    box-shadow: 0 10px 35px rgba(0,0,0,.14);
+  }
+
+  @media print {
+    html, body {
+      background: #fff;
+    }
+
+    .toolbar {
+      display: none !important;
+    }
+
+    .report-page {
+      margin: 0;
+      box-shadow: none;
+    }
+  }
+
+  /* =========================================================
+     TOP HEADER CARD
+     ========================================================= */
+  .top-header {
+    position: absolute;
+    left: 3.5mm;
+    right: 3.5mm;
+    top: 2.6mm;
+    height: 48.5mm;
+    border: 2px solid var(--maroon);
+    border-radius: 8mm;
+    padding: 2.6mm;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 91% 21%, rgba(255,255,255,.85) 0 9%, transparent 9.5%),
+      radial-gradient(circle at 94% 34%, rgba(255,255,255,.6) 0 10%, transparent 10.5%),
+      linear-gradient(180deg, #fffdfb 0%, #fffaf7 100%);
+  }
+
+  .top-header::after {
+    content: "";
+    position: absolute;
+    left: -3%;
+    right: -2%;
+    bottom: -9mm;
+    height: 23mm;
+    border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+    background:
+      linear-gradient(180deg, transparent 0 16%, rgba(116,16,25,.06) 16% 21%, transparent 21% 100%);
+    border-top: 5px solid rgba(116,16,25,.13);
+    pointer-events: none;
+  }
+
+  .header-grid {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: 47mm 1fr 50mm;
+    height: 100%;
+    align-items: center;
+  }
+
+  /* Left DYP / department block */
+  .brand-panel {
+    height: 42mm;
+    border-radius: 5.2mm;
+    background: linear-gradient(180deg, var(--maroon-dark) 0%, #8b1b24 100%);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,.85);
+    outline: 1px solid rgba(116,16,25,.25);
+    padding: 4mm 3.7mm 3mm;
+    text-align: center;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+  }
+
+  .brand-dyp {
+    font-size: 21pt;
+    line-height: 1;
+    font-weight: 950;
+    letter-spacing: -0.05em;
+  }
+
+  .brand-patim {
+    margin-top: .8mm;
+    font-size: 6.5pt;
+    line-height: 1.16;
+    font-weight: 900;
+  }
+
+  .brand-rule {
+    width: 72%;
+    margin: 2.5mm auto;
+    border-top: 1px solid rgba(255,255,255,.85);
+  }
+
+  .brand-caduceus {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 3mm;
+    margin: 1mm 0;
+    font-size: 15pt;
+  }
+
+  .brand-leaves {
+    font-size: 11pt;
+    letter-spacing: 4px;
+  }
+
+  .brand-dept {
+    margin-top: 2.2mm;
+    font-size: 6.4pt;
+    line-height: 1.3;
+    font-weight: 900;
+  }
+
+  /* Center institutional typography */
+  .institution {
+    padding: 0 7mm;
+    border-left: 1.4px solid var(--maroon);
+    text-align: left;
+  }
+
+  .institution h1 {
+    margin: 0;
+    color: var(--maroon-dark);
+    font-size: 16.4pt;
+    line-height: 1.02;
+    font-weight: 950;
+    letter-spacing: .015em;
+    text-transform: uppercase;
+  }
+
+  .institution .akurdi {
+    margin-top: .8mm;
+    font-size: 11.8pt;
+    line-height: 1.05;
+    font-weight: 800;
+    color: var(--maroon-dark);
+  }
+
+  .institution .address {
+    margin-top: 2.2mm;
+    font-size: 7.6pt;
+    line-height: 1.2;
+    font-weight: 700;
+    color: var(--maroon-dark);
+  }
+
+  .institution .separator {
+    margin: 2.2mm 0 1.6mm;
+    width: 82%;
+    border-top: 1px solid var(--maroon);
+  }
+
+  .institution .department {
+    font-size: 9.6pt;
+    line-height: 1.12;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: var(--maroon-dark);
+  }
+
+  .institution .pharmd {
+    font-size: 7.5pt;
+    font-weight: 900;
+    color: var(--maroon-dark);
+  }
+
+  /* Right slogan */
+  .slogan {
+    position: relative;
+    height: 42mm;
+    padding: 2mm 2mm 0 3mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--maroon);
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    font-weight: 800;
+    font-size: 13pt;
+    line-height: 1.08;
+    transform: rotate(-5deg);
+  }
+
+  .slogan::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 1mm;
+    width: 15mm;
+    height: 12mm;
+    border-radius: 100% 0 100% 0;
+    border-left: 1.2px solid rgba(116,16,25,.18);
+    border-bottom: 1.2px solid rgba(116,16,25,.18);
+    transform: rotate(18deg);
+  }
+
+  .slogan::after {
+    content: "";
+    position: absolute;
+    bottom: 6mm;
+    left: 15%;
+    width: 72%;
+    height: 7mm;
+    border-bottom: 1.4px solid var(--maroon);
+    border-radius: 50%;
+    transform: rotate(-5deg);
+  }
+
+  /* =========================================================
+     MAIN TITLE STRIP
+     ========================================================= */
+  .title-strip {
+    position: absolute;
+    top: 54.2mm;
+    left: 3.7mm;
+    right: 3.7mm;
+    height: 14.5mm;
+    border-radius: 5.5mm;
+    background: linear-gradient(180deg, #76111b 0%, #6a0e16 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3mm;
+    font-size: 14.4pt;
+    font-weight: 950;
+    letter-spacing: .01em;
+  }
+
+  .title-strip .heart-icon {
+    font-size: 18pt;
+    line-height: 1;
+  }
+
+  .title-strip::before,
+  .title-strip::after {
+    content: "";
+    width: 40mm;
+    border-top: 1.8px solid rgba(255,255,255,.95);
+  }
+
+  /* =========================================================
+     SECTION TITLES
+     ========================================================= */
+  .content {
+    position: absolute;
+    top: 72.5mm;
+    left: 6.3mm;
+    right: 6.3mm;
+    bottom: 45mm;
+  }
+
+  .section {
+    position: relative;
+    margin-top: 4mm;
+  }
+
+  .section:first-child {
+    margin-top: 0;
+  }
+
+  .section-heading {
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+    color: var(--maroon);
+    font-size: 10.4pt;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .section-heading .icon {
+    width: 9.2mm;
+    height: 9.2mm;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #fff;
+    background: var(--maroon);
+    font-size: 12pt;
+    font-weight: 900;
+  }
+
+  .section-heading .line {
+    height: 0;
+    flex: 1;
+    border-top: 1.2px solid #8d3a40;
+    transform: translateY(1px);
+  }
+
+  /* =========================================================
+     DEMOGRAPHICS
+     ========================================================= */
+  .demographics-box {
+    margin-top: 2mm;
+    padding: 3.3mm 5.5mm;
+    min-height: 27.5mm;
+    border: 1.2px solid var(--line-pink);
+    border-radius: 4mm;
+    background: linear-gradient(180deg, rgba(251,240,239,.82) 0%, rgba(255,252,251,.92) 100%);
+  }
+
+  .demo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 13mm;
+    row-gap: 1.8mm;
+  }
+
+  .demo-field {
+    display: grid;
+    grid-template-columns: 28mm 1fr;
+    align-items: end;
+    min-width: 0;
+  }
+
+  .demo-label {
+    font-size: 8.6pt;
+    color: var(--ink-blue);
+    font-weight: 500;
+  }
+
+  .demo-value {
+    min-width: 0;
+    min-height: 5.2mm;
+    padding: 0 .5mm .5mm;
+    border-bottom: 1px solid #b7aeb0;
+    color: #243d55;
+    font-size: 8.5pt;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  /* =========================================================
+     LABORATORY TABLE
+     ========================================================= */
+  .lab-wrap {
+    margin-top: 2.5mm;
+    position: relative;
+    border: 1.1px solid #8f7a7b;
+    border-radius: 3mm;
+    overflow: hidden;
+    background: rgba(255,255,255,.92);
+  }
+
+  .lab-watermark {
+    position: absolute;
+    left: 42%;
+    top: 48%;
+    transform: translate(-50%, -50%);
+    width: 58mm;
+    height: 58mm;
+    opacity: .065;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .lab-table {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    color: var(--ink-blue);
+    font-size: 7.8pt;
+  }
+
+  .lab-table th {
+    background: var(--maroon);
+    color: #fff;
+    padding: 2.5mm 3mm;
+    font-size: 8.6pt;
+    font-weight: 900;
+    border-right: 1px solid rgba(255,255,255,.55);
+    text-align: left;
+  }
+
+  .lab-table th:last-child {
+    border-right: 0;
+  }
+
+  .lab-table td {
+    padding: 2.4mm 4.3mm;
+    vertical-align: middle;
+    border-top: 1px solid #dac7c8;
+    border-right: 1px solid #dac7c8;
+    background: rgba(255,252,251,.76);
+    overflow-wrap: anywhere;
+  }
+
+  .lab-table td:last-child {
+    border-right: 0;
+  }
+
+  .lab-table td.result {
+    text-align: center;
+    font-size: 9pt;
+    font-weight: 850;
+  }
+
+  .lab-table .muted {
+    color: #50606f;
+  }
+
+  .lab-table .high {
+    color: #9f1b27;
+    font-weight: 900;
+  }
+
+  .lab-table .normal {
+    color: #275f44;
+    font-weight: 900;
+  }
+
+  /* =========================================================
+     COUNSELING
+     ========================================================= */
+  .counseling-box {
+    margin-top: 2.5mm;
+    height: 58mm;
+    border: 1.2px solid var(--line-pink);
+    border-radius: 4mm;
+    background: linear-gradient(180deg, #fff9f8 0%, #fffdfc 100%);
+    padding: 4mm 5mm;
+    overflow: hidden;
+  }
+
+  .counseling-list {
+    margin: 0;
+    padding-left: 6mm;
+    color: #2d4359;
+    font-size: 8.4pt;
+    line-height: 1.52;
+  }
+
+  .counseling-list li {
+    margin-bottom: 2mm;
+  }
+
+  /* =========================================================
+     FOOTER / DECORATIVE BOTTOM WAVE
+     ========================================================= */
+  .footer-area {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 43mm;
+    overflow: hidden;
+    text-align: center;
+    z-index: 1;
+  }
+
+  .footer-wave-back {
+    position: absolute;
+    left: -7%;
+    right: -7%;
+    bottom: -18mm;
+    height: 45mm;
+    background: var(--maroon);
+    border-radius: 50% 50% 0 0 / 28% 28% 0 0;
+  }
+
+  .footer-wave-mid {
+    position: absolute;
+    left: -8%;
+    right: -8%;
+    bottom: -7mm;
+    height: 27mm;
+    background: #d8a4a7;
+    border-radius: 50% 50% 0 0 / 65% 65% 0 0;
+  }
+
+  .footer-wave-front {
+    position: absolute;
+    left: -10%;
+    right: -10%;
+    bottom: -11mm;
+    height: 24mm;
+    background: #fbefed;
+    border-radius: 50% 50% 0 0 / 75% 75% 0 0;
+  }
+
+  .footer-copy {
+    position: relative;
+    z-index: 3;
+    padding-top: 1mm;
+    color: var(--maroon);
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    font-weight: 800;
+  }
+
+  .footer-copy .thankyou {
+    font-size: 11.2pt;
+    line-height: 1;
+  }
+
+  .footer-copy .college {
+    margin-top: 1.4mm;
+    font-size: 8.6pt;
+    line-height: 1.05;
+  }
+
+  .footer-mark {
+    margin-top: 3mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5mm;
+  }
+
+  .footer-mark .rule {
+    width: 35mm;
+    border-top: 1px solid var(--maroon);
+  }
+
+  .footer-mark .flower {
+    color: var(--maroon);
+    font-size: 14pt;
+    line-height: 1;
+  }
+
+  /* Decorative mortar & pestle, matching the reference mood */
+  .mortar {
+    position: absolute;
+    right: 7mm;
+    bottom: 7mm;
+    z-index: 4;
+    width: 17mm;
+    height: 15mm;
+  }
+
+  .mortar::before {
+    content: "";
+    position: absolute;
+    left: 2mm;
+    bottom: 1mm;
+    width: 11mm;
+    height: 7mm;
+    border-radius: 2mm 2mm 5mm 5mm;
+    background: rgba(255,255,255,.82);
+    border: 1px solid rgba(255,255,255,.72);
+    transform: skewX(-8deg);
+  }
+
+  .mortar::after {
+    content: "";
+    position: absolute;
+    width: 12mm;
+    height: 2.5mm;
+    right: 0;
+    top: 0;
+    border-radius: 50%;
+    background: rgba(255,255,255,.82);
+    transform: rotate(-27deg);
+    transform-origin: right center;
+  }
+
+  /* =========================================================
+     OPTIONAL QR PANEL
+     =========================================================
+     Default is ON for this prototype.
+     Set .qr-panel { display:none; } if the printed reference
+     should remain 100% identical to the screenshot.
+     ========================================================= */
+  .qr-panel {
+    position: absolute;
+    right: 7mm;
+    bottom: 9mm;
+    z-index: 5;
+    width: 24mm;
+    padding: 1.7mm;
+    border-radius: 2.2mm;
+    background: rgba(255,255,255,.94);
+    border: 1px solid rgba(116,16,25,.45);
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  }
+
+  .qr-panel img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .qr-label {
+    margin-top: 1mm;
+    color: var(--maroon-dark);
+    text-align: center;
+    font-size: 5.1pt;
+    line-height: 1.12;
+    font-weight: 850;
+  }
+
+  /* =========================================================
+     DEBUG MODE
+     ========================================================= */
+  body.debug .report-page * {
+    outline: 1px dashed rgba(0, 120, 255, .13);
+  }
+
+  /* =========================================================
+     MOBILE PREVIEW
+     ========================================================= */
+  @media screen and (max-width: 850px) {
+    .report-page {
+      transform-origin: top left;
+      margin-left: 12px;
+      margin-right: 12px;
+    }
+
+    .toolbar {
+      position: static;
+    }
+  }
+</style>
+</head>
+
+<body>
+
+<div class="toolbar">
+  <button onclick="window.print()">Print / Save as PDF</button>
+  <button class="secondary" onclick="document.body.classList.toggle('debug')">
+    Toggle Layout Debug
+  </button>
+</div>
+
+<main class="report-page">
+
+  <!-- =======================================================
+       TOP HEADER
+       ======================================================= -->
+  <header class="top-header">
+    <div class="header-grid">
+
+      <!-- Replace this block with your REAL DYP logo image when available -->
+      <div class="brand-panel">
+        <div class="brand-dyp">DYP</div>
+        <div class="brand-patim">DR. D. Y. PATIL<br>COLLEGE OF PHARMACY<br>AKURDI, PUNE</div>
+        <div class="brand-rule"></div>
+        <div class="brand-caduceus">⚕ <span class="brand-leaves">◖◗</span></div>
+        <div class="brand-rule"></div>
+        <div class="brand-dept">DEPARTMENT OF<br>PHARMACY PRACTICE<br>(Pharm.D)</div>
+      </div>
+
+      <div class="institution">
+        <h1>DR. D. Y. PATIL<br>COLLEGE OF PHARMACY</h1>
+        <div class="akurdi">AKURDI, PUNE</div>
+
+        <div class="address">
+          D.Y. Patil Educational Complex, Sector, Pradhikaran,<br>
+          Nigdi, Pune, Maharashtra 412101
+        </div>
+
+        <div class="separator"></div>
+
+        <div class="department">DEPARTMENT OF PHARMACY PRACTICE</div>
+        <div class="pharmd">(Pharm.D)</div>
+      </div>
+
+      <div class="slogan">
+        Better Health<br>
+        for a Brighter<br>
+        Tomorrow
+      </div>
+
+    </div>
+  </header>
+
+  <!-- =======================================================
+       TITLE STRIP
+       ======================================================= -->
+  <section class="title-strip">
+    <span class="heart-icon">♡</span>
+    <span>Health Screening Report</span>
+  </section>
+
+  <!-- =======================================================
+       MAIN CONTENT
+       ======================================================= -->
+  <div class="content">
+
+    <!-- DEMOGRAPHICS -->
+    <section class="section">
+      <div class="section-heading">
+        <span class="icon">●</span>
+        <span>Demographics:</span>
+        <span class="line"></span>
+      </div>
+
+      <div class="demographics-box">
+        <div class="demo-grid">
+
+          <div class="demo-field">
+            <div class="demo-label">Patient Name:</div>
+            <div class="demo-value">Aarav Sharma</div>
+          </div>
+
+          <div class="demo-field">
+            <div class="demo-label">Age:</div>
+            <div class="demo-value">24 years</div>
+          </div>
+
+          <div class="demo-field">
+            <div class="demo-label">Phone:</div>
+            <div class="demo-value">9876543210</div>
+          </div>
+
+          <div class="demo-field">
+            <div class="demo-label">Gender:</div>
+            <div class="demo-value">Male</div>
+          </div>
+
+          <div class="demo-field">
+            <div class="demo-label">Patient ID:</div>
+            <div class="demo-value">HSC-P-00127</div>
+          </div>
+
+          <div class="demo-field">
+            <div class="demo-label">BMI:</div>
+            <div class="demo-value">23.45 kg/m²</div>
+          </div>
+
+          <div></div>
+
+          <div class="demo-field">
+            <div class="demo-label">Date:</div>
+            <div class="demo-value">25 September 2026</div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- LAB RESULTS -->
+    <section class="section">
+      <div class="section-heading">
+        <span class="icon">⚗</span>
+        <span>Laboratory Test Result:</span>
+        <span class="line"></span>
+      </div>
+
+      <div class="lab-wrap">
+
+        <!-- Soft DYP watermark behind the table content -->
+        <svg class="lab-watermark" viewBox="0 0 300 300" aria-hidden="true">
+          <circle cx="150" cy="150" r="124" fill="none" stroke="#741019" stroke-width="7"/>
+          <circle cx="150" cy="150" r="105" fill="none" stroke="#741019" stroke-width="2"/>
+          <path d="M100 155h100M150 102v106" stroke="#741019" stroke-width="12"/>
+          <text x="150" y="226" text-anchor="middle"
+                font-family="Arial" font-size="34" font-weight="900" fill="#741019">DYP</text>
+        </svg>
+
+        <table class="lab-table">
+          <colgroup>
+            <col style="width: 33%">
+            <col style="width: 27%">
+            <col style="width: 40%">
+          </colgroup>
+
+          <thead>
+            <tr>
+              <th>Test</th>
+              <th style="text-align:center;">Result</th>
+              <th>Normal Range</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>Hemoglobin (Hb)</td>
+              <td class="result normal">14.2 g/dL</td>
+              <td>
+                Women: 12-16 g/dl<br>
+                Men: 13-18 g/dl<br>
+                Children: 11-14 g/dl<br>
+                Pregnant: 11-14 g/dl
+              </td>
+            </tr>
+
+            <tr>
+              <td>Random Blood Glucose<br>(RBS)</td>
+              <td class="result normal">96 mg/dL</td>
+              <td>70-110 mg/dl</td>
+            </tr>
+
+            <tr>
+              <td>Force Expiratory Volume<br>(FEV1)</td>
+              <td class="result">3.1 L</td>
+              <td>Standard Chart</td>
+            </tr>
+
+            <tr>
+              <td>Blood Pressure</td>
+              <td class="result high">138/86 mmHg</td>
+              <td>
+                Normal: 120/80 mmHg<br>
+                Pre-HTN: 120-139/80-89 mmHg<br>
+                Stage 1 HTN: 140-159/90-99 mmHg<br>
+                Stage 2 HTN: &gt; 160/&gt;100 mmHg<br>
+                Hypertensive Crisis: &gt; 180/&gt; 120 mmHg
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- COUNSELING -->
+    <section class="section">
+      <div class="section-heading">
+        <span class="icon">☷</span>
+        <span>Patient Counseling Points:</span>
+        <span class="line"></span>
+      </div>
+
+      <div class="counseling-box">
+        <ol class="counseling-list">
+          <li>Maintain a balanced diet with adequate vegetables, fruits, whole grains and protein.</li>
+          <li>Limit excessive salt, highly processed foods, sugary beverages and foods high in saturated fat.</li>
+          <li>Maintain regular physical activity appropriate for your age and overall health status.</li>
+          <li>Monitor blood pressure periodically and discuss elevated readings with a qualified clinician.</li>
+          <li>Maintain adequate hydration and follow routine preventive health screening.</li>
+        </ol>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- =======================================================
+       FOOTER DECORATION
+       ======================================================= -->
+  <footer class="footer-area">
+
+    <div class="footer-wave-back"></div>
+    <div class="footer-wave-mid"></div>
+    <div class="footer-wave-front"></div>
+
+    <div class="footer-copy">
+      <div class="thankyou">Thank you for visiting</div>
+      <div class="college">Dr. D. Y. Patil College of Pharmacy, Akurdi, Pune.</div>
+
+      <div class="footer-mark">
+        <span class="rule"></span>
+        <span class="flower">❧</span>
+        <span class="rule"></span>
+      </div>
+    </div>
+
+    <!-- Decorative pharmacy icon -->
+    <div class="mortar" aria-hidden="true"></div>
+  </footer>
+
+  <!-- =======================================================
+       OPTIONAL QR CODE
+       =======================================================
+       This QR is a WORKING DEMO and points to:
+       https://dypcoppharmacypractice.in/report/demo-HSC-2026-000123
+
+       For production:
+       - generate a secure random report token server-side
+       - build the URL from your actual domain + token
+       - inject the QR image into this block
+       - do not place patient data directly in the QR payload
+       ======================================================= -->
+  <div class="qr-panel">
+    <img
+      src="data:image/png;base64,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"
+      alt="QR code to view this report online"
+    />
+    <div class="qr-label">Scan to view<br>report online</div>
+  </div>
+
+</main>
+
+<script>
+  // Example dynamic report data hook.
+  // In your Next.js version this data will come from Supabase.
+  const report = {
+    reportId: "HSC-2026-000123",
+    patientName: "Aarav Sharma",
+    screeningDate: "25 September 2026",
+    onlineReportUrl: "https://dypcoppharmacypractice.in/report/demo-HSC-2026-000123"
+  };
+
+  console.log("Example report:", report);
+</script>
+
+</body>
+</html>

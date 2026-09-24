@@ -11,3 +11,30 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+.rp-print-btn {
+  min-width: 158px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.rp-print-btn:disabled {
+  cursor: not-allowed;
+}
+
+.rp-print-spinner {
+  width: 14px;
+  height: 14px;
+  animation: rp-spin 0.9s linear infinite;
+}
+
+@keyframes rp-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

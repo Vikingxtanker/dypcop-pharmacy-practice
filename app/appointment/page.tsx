@@ -7,8 +7,8 @@ import { supabase } from "@/lib/supabase";
 import emailjs from "@emailjs/browser";
 import Swal from "sweetalert2";
 
-const APPOINTMENT_DATE = "2026-09-25";
-const APPOINTMENT_DATE_LABEL = "25 September 2026";
+const APPOINTMENT_DATE = "2026-09-26";
+const APPOINTMENT_DATE_LABEL = "26 September 2026";
 
 const EMAILJS_PUBLIC_KEY = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
 const EMAILJS_SERVICE_ID = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
@@ -239,8 +239,8 @@ export default function AppointmentPage() {
                   <label className="form-label">Preferred Time Slot</label>
                   <select className="form-select" name="timeslot" value={formData.timeslot} onChange={handleChange} required>
                     <option value="">Select Time Slot</option>
-                    <option>Morning (10 AM - 12 PM)</option>
-                    <option>Afternoon (2 PM - 5 PM)</option>
+                    <option>Morning (11 AM - 12 PM)</option>
+                    <option>Afternoon (12 PM - 2 PM)</option>
                   </select>
                 </div>
                 <div className="text-center">

@@ -1,0 +1,320 @@
+import { formatScreeningDate } from "@/lib/utils";
+
+export type ReportStatus = "normal" | "high" | "low" | "info";
+
+/** Visual tone derived from the existing clinical status (single source of truth). */
+export type ReportVisualTone = "normal" | "low" | "high" | "neutral";
+
+const STATUS_TO_TONE: Record<ReportStatus, ReportVisualTone> = {
+  normal: "normal",
+  low: "low",
+  high: "high",
+  info: "neutral",
+};
+
+export const resultStatusTone = (status?: ReportStatus): ReportVisualTone =>
+  status ? STATUS_TO_TONE[status] : "neutral";
+
+/** Semantic CSS class applied to the result value cell (colors live in report.css). */
+export const resultStatusClass = (status?: ReportStatus): string =>
+  `rp-result--${resultStatusTone(status)}`;
+
+/** Accessible plain-text phrase describing the result relative to its normal range. */
+export const resultStatusLabel = (status?: ReportStatus): string => {
+  switch (resultStatusTone(status)) {
+    case "normal":
+      return "within normal range";
+    case "low":
+      return "below normal range";
+    case "high":
+      return "above normal range";
+    default:
+      return "unclassified status";
+  }
+};
+
+export interface LaboratoryResultRow {
+  test: string;
+  result?: string;
+  unit?: string;
+  normalRange?: string;
+  status?: ReportStatus;
+}
+
+export interface PatientHealthScreeningReportDemographics {
+  name: string;
+  phone?: string;
+  patientId?: string;
+  age?: number | string;
+  gender?: string;
+  bmi?: number | string;
+  date: string;
+  address?: string;
+}
+
+export interface PatientHealthScreeningReportData {
+  patient: PatientHealthScreeningReportDemographics;
+  laboratoryResults: LaboratoryResultRow[];
+  counselingPoints: string[];
+  reportId: string;
+  onlineReportUrl?: string;
+}
+
+export interface PatientReportRow {
+  id: string;
+  name: string;
+  age?: number | string | null;
+  gender?: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+  address?: string | null;
+  bmi?: number | string | null;
+}
+
+export interface ScreeningTestRecord {
+  id?: string;
+  patient_id?: string;
+  test_type: string;
+  value_numeric?: number | null;
+  value_text?: string | null;
+  unit?: string | null;
+  created_at: string;
+}
+
+interface LabColumn {
+  type: string;
+  label: string;
+  unitKey?: "unit";
+}
+
+const LAB_TABLE: LabColumn[] = [
+  { type: "Hemoglobin", label: "Hemoglobin (Hb)" },
+  { type: "RBG", label: "Random Blood Glucose (RBS)" },
+  { type: "FBS", label: "Fasting Blood Sugar (FBS)" },
+  { type: "PPBS", label: "Post-Prandial Blood Sugar (PPBS)" },
+  { type: "OGTT", label: "Oral Glucose Tolerance Test (OGTT)" },
+  { type: "HbA1c", label: "Glycated Hemoglobin (HbA1c)" },
+  { type: "Heart Rate", label: "Heart Rate" },
+  { type: "Temperature", label: "Body Temperature" },
+  { type: "SpO2", label: "Oxygen Saturation (SpO\u2082)" },
+  { type: "Target Weight", label: "Target Weight" },
+  { type: "FEV", label: "Forced Expiratory Volume (FEV1)" },
+];
+
+export const NORMAL_RANGES: Record<string, string> = {
+  Hemoglobin: "Women: 12\u201316 g/dL\nMen: 13\u201318 g/dL\nChildren: 11\u201314 g/dL\nPregnant: 11\u201314 g/dL",
+  RBG: "70\u2013110 mg/dL",
+  FBS: "Normal: 70\u2013100 mg/dL\nPrediabetes: 100\u2013125 mg/dL\nDiabetes: \u2265126 mg/dL",
+  PPBS: "Normal: <140 mg/dL\nPost-meal: up to 180 mg/dL",
+  OGTT: "Normal: <140 mg/dL after 2 h glucose load",
+  HbA1c: "Normal: <5.7%\nPrediabetes: 5.7\u20136.4%\nDiabetes: \u22656.5%",
+  "Heart Rate": "60\u2013100 beats/min",
+  Temperature: "36.5\u201337.5 \u00b0C",
+  SpO2: "94\u2013100%",
+  "Target Weight": "Per clinician assessment",
+  FEV: "Standard chart / clinician assessment",
+  BP: "Normal: <120/80 mmHg\nPre-HTN: 120\u2013139/80\u201389 mmHg\nStage 1 HTN: 140\u2013159/90\u201399 mmHg\nStage 2 HTN: \u2265160/\u2265100 mmHg",
+};
+
+export const inferTestStatus = (type: string, value?: number | string | null): ReportStatus => {
+  if (value === undefined || value === null || value === "") return "info";
+  const v = typeof value === "number" ? value : parseFloat(String(value).replace(/[^0-9.]/g, ""));
+  if (Number.isNaN(v)) return "info";
+
+  switch (type) {
+    case "Hemoglobin":
+      return v >= 18 ? "high" : v < 11 ? "low" : "normal";
+    case "FBS":
+      return v >= 126 ? "high" : v <= 70 ? "low" : "normal";
+    case "RBG":
+      return v >= 200 ? "high" : "normal";
+    case "PPBS":
+      return v >= 180 ? "high" : "normal";
+    case "OGTT":
+      return v >= 200 ? "high" : "normal";
+    case "HbA1c":
+      return v >= 6.5 ? "high" : "normal";
+    case "Heart Rate":
+      return v > 100 ? "high" : v < 60 ? "low" : "normal";
+    case "Temperature":
+      return v > 37.5 ? "high" : v < 36 ? "low" : "normal";
+    case "SpO2":
+      return v < 94 ? "low" : "normal";
+    default:
+      return "info";
+  }
+};
+
+export const inferBpStatus = (combined: string): ReportStatus => {
+  const [sysRaw, diaRaw] = combined.split("/");
+  const sys = parseFloat(sysRaw);
+  const dia = parseFloat(diaRaw);
+  if (Number.isNaN(sys) || Number.isNaN(dia)) return "info";
+  if (sys >= 140 || dia >= 90) return "high";
+  if (sys <= 90 || dia <= 60) return "low";
+  if (sys >= 120 || dia >= 80) return "info";
+  return "normal";
+};
+
+const latestByType = (records: ScreeningTestRecord[]): Map<string, ScreeningTestRecord> => {
+  const map = new Map<string, ScreeningTestRecord>();
+  for (const rec of records) {
+    if (!map.has(rec.test_type)) map.set(rec.test_type, rec);
+  }
+  return map;
+};
+
+const displayValue = (rec: ScreeningTestRecord): string => {
+  const num = rec.value_numeric;
+  const txt = rec.value_text;
+  if (num !== null && num !== undefined && txt === null && rec.test_type !== "Counseling") {
+    const cleaned = String(num);
+    if (cleaned.length < 6 && Number.isInteger(num)) return String(num);
+    const parsed = parseFloat(cleaned);
+    if (!Number.isNaN(parsed)) return Number.isInteger(parsed) ? String(parsed) : String(Math.round(parsed * 100) / 100);
+  }
+  if (txt !== null && txt !== undefined && txt !== "") return txt;
+  if (num !== null && num !== undefined) return String(num);
+  return "";
+};
+
+export function buildHealthScreeningReportData(
+  patientRow: PatientReportRow,
+  records: ScreeningTestRecord[],
+  dateKey: string,
+): PatientHealthScreeningReportData {
+  const latest = latestByType(records);
+
+  const laboratoryResults: LaboratoryResultRow[] = [];
+  for (const col of LAB_TABLE) {
+    const rec = latest.get(col.type);
+    if (!rec) continue;
+    const value = displayValue(rec);
+    const unit = rec.unit || "";
+    if (!value && rec.test_type !== "Counseling") continue;
+    laboratoryResults.push({
+      test: col.label,
+      result: value ? (unit ? `${value} ${unit}` : value) : "N/A",
+      unit,
+      normalRange: NORMAL_RANGES[col.type],
+      status: inferTestStatus(col.type, rec.value_numeric ?? (rec.value_text ? value : null)),
+    });
+  }
+
+  const sys = latest.get("Systolic");
+  const dia = latest.get("Diastolic");
+  const bpRec = latest.get("BP");
+  if (sys || dia) {
+    const sVal = sys ? displayValue(sys) : "N/A";
+    const dVal = dia ? displayValue(dia) : "N/A";
+    const label = `${sVal}/${dVal}`;
+    laboratoryResults.push({
+      test: "Blood Pressure",
+      result: `${label} mmHg`,
+      unit: "mmHg",
+      normalRange: NORMAL_RANGES.BP,
+      status: inferBpStatus(label),
+    });
+  } else if (bpRec) {
+    const label = bpRec.value_text || displayValue(bpRec);
+    laboratoryResults.push({
+      test: "Blood Pressure",
+      result: label ? `${label} mmHg` : "N/A",
+      unit: "mmHg",
+      normalRange: NORMAL_RANGES.BP,
+      status: inferBpStatus(label),
+    });
+  }
+
+  const counselingRec = latest.get("Counseling");
+  const rawCounseling = counselingRec
+    ? counselingRec.value_text || (counselingRec.value_numeric != null ? String(counselingRec.value_numeric) : "")
+    : "";
+  const counselingPoints = rawCounseling
+    .split(/\r?\n/)
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  if (counselingRec && counselingPoints.length === 0 && rawCounseling.trim()) {
+    counselingPoints.push(rawCounseling.trim());
+  }
+
+  const phone = patientRow.phone || patientRow.mobile || undefined;
+  const bmi = patientRow.bmi !== undefined && patientRow.bmi !== null ? String(patientRow.bmi) : undefined;
+
+  return {
+    patient: {
+      name: patientRow.name || "Unknown",
+      phone,
+      patientId: patientRow.id,
+      age: patientRow.age !== undefined && patientRow.age !== null ? patientRow.age : undefined,
+      gender: patientRow.gender || undefined,
+      bmi,
+      date: dateKey ? formatScreeningDate(dateKey) : "",
+      address: patientRow.address || undefined,
+    },
+    laboratoryResults,
+    counselingPoints,
+    reportId: `${patientRow.id}-${dateKey}`,
+  };
+}
+
+const DEMO_COUNSELING = [
+  "Maintain a balanced diet with adequate vegetables, fruits, whole grains and protein every day.",
+  "Limit excessive salt, highly processed foods, sugary beverages and foods high in saturated fat to keep your blood pressure and glucose in range.",
+  "Maintain regular physical activity appropriate for your age and overall health status such as brisk walking for at least 30 minutes on most days of the week.",
+  "Monitor blood pressure periodically at home and discuss elevated readings promptly with a qualified clinician.",
+  "Maintain adequate hydration and follow routine preventive health screening at recommended intervals.",
+  "Keep your HbA1c within target range and adhere to prescribed medication schedules without skipping doses.",
+  "If you smoke or use tobacco products, discuss structured cessation support with the pharmacy team.",
+  "Record any adverse drug reactions or unusual symptoms in your health diary and report them during your next consultation.",
+  "Ensure follow-up that your fasting and post-prandial blood sugar remain in their respective target ranges.",
+  "Review your kidney function and uric acid values periodically, especially if you take long-term medication.",
+  "Maintain a healthy body weight; a gradual reduction of even five to ten percent of body weight improves cardiovascular risk profile.",
+  "Contact the Department of Pharmacy Practice at the college for medication counselling and health screening reminders, and do not share your report access QR code with others.",
+];
+
+const DEMO_EXTRA_ROWS: LaboratoryResultRow[] = [
+  { test: "Total Cholesterol (TC)", result: "178 mg/dL", normalRange: "Desirable: <200 mg/dL\nBorderline: 200\u2013239 mg/dL", status: "normal" },
+  { test: "Triglycerides (TG)", result: "132 mg/dL", normalRange: "Normal: <150 mg/dL\nBorderline: 150\u2013199 mg/dL", status: "normal" },
+  { test: "HDL Cholesterol", result: "45 mg/dL", normalRange: "Men: >40 mg/dL\nWomen: >50 mg/dL", status: "normal" },
+  { test: "LDL Cholesterol", result: "96 mg/dL", normalRange: "Optimal: <100 mg/dL\nNear optimal: 100\u2013129 mg/dL", status: "normal" },
+  { test: "Serum Creatinine", result: "0.9 mg/dL", normalRange: "Women: 0.5\u20131.1 mg/dL\nMen: 0.6\u20131.3 mg/dL", status: "normal" },
+  { test: "Uric Acid", result: "5.8 mg/dL", normalRange: "Women: 2.4\u20136.0 mg/dL\nMen: 3.4\u20137.0 mg/dL", status: "normal" },
+  { test: "Vitamin D (25-OH)", result: "31 ng/mL", normalRange: "Deficient: <20 ng/mL\nInsufficient: 20\u201329 ng/mL\nSufficient: 30\u2013100 ng/mL", status: "info" },
+];
+
+export const demoReportData = (): PatientHealthScreeningReportData => {
+  const laboratory: LaboratoryResultRow[] = [
+    { test: "Hemoglobin (Hb)", result: "14.2 g/dL", unit: "g/dL", normalRange: NORMAL_RANGES.Hemoglobin, status: "normal" },
+    { test: "Random Blood Glucose (RBS)", result: "96 mg/dL", unit: "mg/dL", normalRange: NORMAL_RANGES.RBG, status: "normal" },
+    { test: "Fasting Blood Sugar (FBS)", result: "88 mg/dL", unit: "mg/dL", normalRange: NORMAL_RANGES.FBS, status: "normal" },
+    { test: "Post-Prandial Blood Sugar (PPBS)", result: "122 mg/dL", unit: "mg/dL", normalRange: NORMAL_RANGES.PPBS, status: "normal" },
+    { test: "Oral Glucose Tolerance Test (OGTT)", result: "132 mg/dL", unit: "mg/dL", normalRange: NORMAL_RANGES.OGTT, status: "normal" },
+    { test: "Glycated Hemoglobin (HbA1c)", result: "5.4 %", unit: "%", normalRange: NORMAL_RANGES.HbA1c, status: "normal" },
+    { test: "Heart Rate", result: "74 /min", unit: "/min", normalRange: NORMAL_RANGES["Heart Rate"], status: "normal" },
+    { test: "Body Temperature", result: "36.8 \u00b0C", unit: "\u00b0C", normalRange: NORMAL_RANGES.Temperature, status: "normal" },
+    { test: "Oxygen Saturation (SpO\u2082)", result: "98 %", unit: "%", normalRange: NORMAL_RANGES.SpO2, status: "normal" },
+    { test: "Target Weight", result: "72 kg", unit: "kg", normalRange: NORMAL_RANGES["Target Weight"], status: "info" },
+    { test: "Forced Expiratory Volume (FEV1)", result: "3.1 L", unit: "L", normalRange: NORMAL_RANGES.FEV, status: "info" },
+    { test: "Blood Pressure", result: "138/86 mmHg", unit: "mmHg", normalRange: NORMAL_RANGES.BP, status: "info" },
+    ...DEMO_EXTRA_ROWS,
+  ];
+
+  return {
+    patient: {
+      name: "Aarav Sharma",
+      phone: "9876543210",
+      patientId: "HSC-P-00127",
+      age: 24,
+      gender: "Male",
+      bmi: "23.45",
+      date: "25 September 2026",
+      address: "Pradhikaran, Nigdi, Pune, Maharashtra",
+    },
+    laboratoryResults: laboratory,
+    counselingPoints: DEMO_COUNSELING,
+    reportId: "HSC-P-00127-2026-09-25",
+    onlineReportUrl: "https://dypcoppharmacypractice.in/report/demo-HSC-P-00127",
+  };
+};
