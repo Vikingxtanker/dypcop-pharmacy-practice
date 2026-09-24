@@ -16,7 +16,6 @@
     "next": "16.3.5",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.1.200",
-    "playwright-core": "^1.63.0",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",

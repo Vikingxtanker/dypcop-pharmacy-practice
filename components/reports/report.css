@@ -915,8 +915,120 @@ body.rp-pdf-body .rp-sheet,
 }
 
 /* ---------------------------------------------------------
-   Continuation pages: compact repeated header is provided by
-   the Chromium print header/footer templates instead of a
-   fixed-position element (Chromium repeats fixed elements on
-   every page, which would overlap the full page-1 header).
+   BROWSER PRINT (window.print / Save as PDF)
+   The report is paginated by the browser's own print engine.
+   --------------------------------------------------------- */
+
+/* Dedicated print-route strip (never printed) */
+.rp-print-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--report-viewer-dark);
+  color: var(--report-white);
+}
+
+.rp-print-bar-text {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.no-print {
+  display: block;
+}
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  /* Let long reports flow over several A4 pages; do not clip */
+  .rp-sheet {
+    overflow: visible;
+    /* 288mm printable body leaves headroom inside the 297mm sheet box so a
+       fitting report stays on exactly one A4 page in every context. */
+    min-height: var(--report-page-height-pdf);
+  }
+
+  /* Neutralize screen-only chrome (flex body, min-vh-100, viewport chrome)
+     that can push the sheet past a single A4 page when printing from a
+     ReportViewer / preview context rather than the dedicated print route. */
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--report-white);
+  }
+
+  body:has(.rp-sheet) {
+    display: block !important;
+    min-height: 0 !important;
+    flex: none !important;
+  }
+
+  .rp-browser {
+    min-height: 0 !important;
+  }
+
+  .rp-viewport {
+    position: static;
+  }
+
+  /* Preserve clinical result colors and brand fills when printed */
+  .rp-sheet,
+  .rp-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color-adjust: exact;
+  }
+
+  /* Keep the laboratory table header on every page when it spans pages */
+  .rp-lab-table thead {
+    display: table-header-group;
+  }
+
+  /* Keep coherent sections together without forcing every break */
+  .rp-header,
+  .rp-title-strip,
+  .rp-demo-box,
+  .rp-section-heading,
+  .rp-footer,
+  .rp-qr-panel,
+  .rp-counseling-list li {
+    break-inside: avoid;
+  }
+
+  .rp-section-heading {
+    break-after: avoid;
+  }
+}
+
+@media screen {
+  /* Ensure the exact print colors are what the preview shows too */
+  .rp-sheet,
+  .rp-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color-adjust: exact;
+  }
+}
+
+/* ---------------------------------------------------------
+   Continuation pages: the browser paginates the report
+   reference: the report simply flows across A4 pages; the
+   laboratory table repeats its header via thead rules above.
    --------------------------------------------------------- */

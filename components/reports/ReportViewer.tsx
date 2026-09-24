@@ -56,7 +56,7 @@ export default function ReportViewer({ children, title, dev }: ReportViewerProps
             </>
           ) : null}
           <button type="button" className="rp-btn" onClick={() => window.print()}>
-            Print / Save as PDF
+            Print Report
           </button>
         </div>
       </div>

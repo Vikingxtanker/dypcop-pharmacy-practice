@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import HssNavbar from "@/components/layout/HssNavbar";
@@ -39,31 +39,9 @@ interface ScreeningSession {
   label: string;
 }
 
-const COORDS = {
-  name: { x: 126, y: 669 },
-  age: { x: 404, y: 668 },
-  phone: { x: 85, y: 647 },
-  gender: { x: 423, y: 647 },
-  patientId: { x: 109, y: 623 },
-  pulse: { x: 105, y: 607 },
-  spo2: { x: 84, y: 591 },
-  bmi: { x: 410, y: 623 },
-  temp: { x: 418, y: 607 },
-  date: { x: 413, y: 591 },
-  fbs: { x: 219, y: 500 },
-  rbs: { x: 219, y: 459 },
-  ppbs: { x: 219, y: 417 },
-  bp: { x: 219, y: 375 },
-  counseling: { x: 40, y: 235 },
-  textSize: 12,
-  counselingLineHeight: 15,
-};
-
 const STATION_PAIRED_TYPES = new Set(["Systolic", "Diastolic"]);
 
 const normalizeTestType = (t: string) => (STATION_PAIRED_TYPES.has(t) ? "BP" : t);
-
-const pad2 = (n: number) => String(n).padStart(2, "0");
 
 const buildSessions = (rows: { created_at: string; test_type: string }[]): ScreeningSession[] => {
   const map = new Map<string, Set<string>>();
@@ -87,23 +65,10 @@ export default function PatientReportPage() {
   const [sessions, setSessions] = useState<ScreeningSession[]>([]);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [tests, setTests] = useState<Record<string, { value: string; raw: TestRecord }>>({});
-  const [pdfLib, setPdfLib] = useState<typeof import("pdf-lib") | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingReport, setLoadingReport] = useState(false);
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const downloadInFlight = useRef(false);
-
-  const triggerPdfDownload = (blob: Blob, fileName: string) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-  };
 
   useEffect(() => {
     if (!user || (user.role !== "admin" && user.role !== "documentation" && user.role !== "station")) {
@@ -113,10 +78,6 @@ export default function PatientReportPage() {
       setAuthorized(true);
     }
   }, [user, router]);
-
-  useEffect(() => {
-    import("pdf-lib").then(setPdfLib);
-  }, []);
 
   const populateLatestTests = (testRecords: TestRecord[], patientRow: PatientRow) => {
     const latest: Record<string, { value: string; raw: TestRecord }> = {};
@@ -251,107 +212,40 @@ export default function PatientReportPage() {
     }
   };
 
-  const handlePrintLegacy = async (dateKey: string) => {
-    if (!patient) return;
-    let testsData = tests;
-    if (selectedDateKey !== dateKey) {
-      const latest = await loadSessionReport(dateKey);
-      if (latest) testsData = latest;
-    }
-    await generatePDFLegacy(dateKey, testsData);
-  };
-
-  const downloadNewReport = async (dateKey: string) => {
-    if (!patient) return;
-    if (downloadInFlight.current) {
-      Swal.fire("Please wait", "A report download is already in progress.", "info");
-      return;
-    }
-    downloadInFlight.current = true;
-    setIsGeneratingReport(true);
+  const handlePrint = async (dateKey: string) => {
+    if (!patient || preparing) return;
+    setPreparing(true);
+    setError(null);
+    const tab = window.open("", "_blank");
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 90000);
-      const res = await fetch("/api/report-pdf", {
+      const res = await fetch("/api/report-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ patientId: patient.id, dateKey }),
-        signal: controller.signal,
       });
-      clearTimeout(timeout);
-      if (!res.ok) throw new Error(`Report API returned ${res.status}`);
-      const bytes = await res.arrayBuffer();
-      if (!bytes || bytes.byteLength === 0) throw new Error("Report API returned an empty PDF");
-      triggerPdfDownload(new Blob([bytes], { type: "application/pdf" }), `Health_Screening_Report_${patient.id}_${dateKey}.pdf`);
-      Swal.fire("Success", "Report PDF downloaded.", "success");
-    } catch (err) {
-      console.error("New report generation failed, falling back to legacy:", err);
-      await handlePrintLegacy(dateKey);
-    } finally {
-      setIsGeneratingReport(false);
-      downloadInFlight.current = false;
-    }
-  };
-
-  const generatePDFLegacy = async (dateKey: string, testsData: Record<string, { value: string; raw: TestRecord }> = {}) => {
-    if (!patient || !pdfLib) {
-      Swal.fire("Error", "No patient data available", "error");
-      return;
-    }
-    try {
-      const res = await fetch("/assets/report_DMv3.pdf");
-      if (!res.ok) throw new Error("PDF template not found (report_DMv3.pdf)");
-      const pdfBytes = await res.arrayBuffer();
-      const { PDFDocument, StandardFonts } = pdfLib;
-      const pdfDoc = await PDFDocument.load(pdfBytes);
-      const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
-      const page = pdfDoc.getPages()[0];
-
-      const draw = (value: string, coord: { x: number; y: number }, size = COORDS.textSize) => {
-        if (!value || value === "N/A") return;
-        page.drawText(String(value), { x: coord.x, y: coord.y, size, font });
-      };
-
-      const drawMultiline = (txt: string, coord: { x: number; y: number }, size = COORDS.textSize, lh = COORDS.counselingLineHeight) => {
-        if (!txt || txt === "N/A") return;
-        const lines = String(txt).split(/\r?\n/);
-        let y = coord.y;
-        for (const line of lines) {
-          if (line.trim() !== "") page.drawText(line, { x: coord.x, y, size, font });
-          y -= lh;
+      if (!res.ok) {
+        let message = `Report preparation failed with status ${res.status}`;
+        try {
+          const body = await res.json();
+          if (body && typeof body.error === "string") message = body.error;
+        } catch {
+          // keep the status-based message
         }
-      };
-
-      const testVal = (key: string) => testsData[key]?.value || "N/A";
-
-      draw(patient.name || "", COORDS.name);
-      draw(String(patient.age ?? ""), COORDS.age);
-      draw(patient.phone || patient.mobile || "", COORDS.phone);
-      draw(patient.gender || "", COORDS.gender);
-      draw(patient.id || "", COORDS.patientId);
-
-      draw(testVal("pulseRate"), COORDS.pulse);
-      draw(testVal("spo2"), COORDS.spo2);
-      draw(String(patient.bmi ?? ""), COORDS.bmi);
-      draw(testVal("temp"), COORDS.temp);
-
-      const [y, m, d] = dateKey.split("-").map(Number);
-      const dateStr = `${pad2(d)}/${pad2(m)}/${y}`;
-      draw(dateStr, COORDS.date);
-
-      draw(testVal("fbs"), COORDS.fbs);
-      draw(testVal("rbs") || testVal("rbg"), COORDS.rbs);
-      draw(testVal("ppbs"), COORDS.ppbs);
-
-      draw(testVal("bp") || "N/A", COORDS.bp);
-
-      drawMultiline(testVal("counselingPoints"), COORDS.counseling);
-
-      const finalPdf = await pdfDoc.save();
-      triggerPdfDownload(new Blob([new Uint8Array(finalPdf)], { type: "application/pdf" }), `Patient_Report_${patient.id}_${dateKey}.pdf`);
+        throw new Error(message);
+      }
+      const { token } = (await res.json()) as { token: string };
+      const printUrl = `/report/print?token=${encodeURIComponent(token)}`;
+      if (tab) {
+        tab.location.href = printUrl;
+      } else {
+        router.push(printUrl);
+      }
     } catch (err) {
-      console.error("PDF Generation Error:", err);
-      Swal.fire("Error", "Could not generate PDF report", "error");
+      tab?.close();
+      console.error("Error preparing print report:", err);
+      Swal.fire("Error", "Could not prepare the print report. Please try again.", "error");
+    } finally {
+      setPreparing(false);
     }
   };
 
@@ -425,15 +319,15 @@ export default function PatientReportPage() {
                           </button>
                           <button
                             className="btn btn-sm btn-outline-success rp-print-btn"
-                            onClick={() => downloadNewReport(s.dateKey)}
-                            disabled={isGeneratingReport}
-                            aria-busy={isGeneratingReport}
-                            aria-label={isGeneratingReport ? "Generating report PDF, please wait" : "Print report PDF"}
+                            onClick={() => handlePrint(s.dateKey)}
+                            disabled={preparing}
+                            aria-busy={preparing}
+                            aria-label={preparing ? "Preparing report, please wait" : "Print report"}
                           >
-                            {isGeneratingReport ? (
+                            {preparing ? (
                               <>
                                 <Loader2 className="rp-print-spinner" aria-hidden="true" />
-                                Generating Report...
+                                Preparing Report...
                               </>
                             ) : (
                               "Print"
