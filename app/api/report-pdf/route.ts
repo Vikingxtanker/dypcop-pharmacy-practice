@@ -1,18 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { istDayRangeUtc } from "@/lib/utils";
-import { buildHealthScreeningReportData, type ScreeningTestRecord } from "@/lib/reports/patient-report-data";
-import { resolveReportAssets } from "@/lib/reports/report-assets";
-import { buildHealthScreeningReportPdf } from "@/lib/reports/pdfmake-report";
-import { getReportOrigin, redeemReportToken } from "@/lib/reports/report-token";
+import { redeemReportToken } from "@/lib/reports/report-token";
+import { renderReportPdf } from "@/lib/reports/report-browser";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function sanitizeFilenamePart(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "report";
+}
+
+function resolvePrintOrigin(request: NextRequest): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+  const proto = request.headers.get("x-forwarded-proto") || "http";
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  if (host) return `${proto}://${host}`;
+  const deployment = process.env.VERCEL_URL;
+  if (deployment) return `https://${deployment.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
+  return request.nextUrl.origin;
 }
 
 export async function GET(request: NextRequest) {
@@ -30,43 +39,35 @@ export async function GET(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL || "",
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
   );
-
   const { data: patient, error: patientError } = await supabase
     .from("patients")
-    .select("*")
+    .select("id")
     .eq("id", payload.patientId)
     .maybeSingle();
   if (patientError || !patient) {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
 
-  const { start, end } = istDayRangeUtc(payload.dateKey);
-  const { data: records } = await supabase
-    .from("patient_tests")
-    .select("*")
-    .eq("patient_id", patient.id)
-    .gte("created_at", start)
-    .lt("created_at", end)
-    .order("created_at", { ascending: false });
+  const printUrl = `${resolvePrintOrigin(request)}/report/print?token=${encodeURIComponent(token)}&pdf=1`;
 
-  const data = buildHealthScreeningReportData(
-    patient,
-    (records || []) as ScreeningTestRecord[],
-    payload.dateKey,
-  );
-  data.onlineReportUrl = `${getReportOrigin()}/report/${token}`;
+  let pdf: Uint8Array;
+  try {
+    pdf = await renderReportPdf(printUrl);
+  } catch (error) {
+    console.error("report-pdf: Chromium render failed", error);
+    return NextResponse.json({ error: "Failed to generate the report. Please try again." }, { status: 500 });
+  }
 
-  const assets = await resolveReportAssets(data);
-  const pdf = await buildHealthScreeningReportPdf(data, assets);
+  const pdfBody = new Uint8Array(pdf);
 
-  const filename = `health-screening-report-${sanitizeFilenamePart(patient.id)}-${payload.dateKey}.pdf`;
+  const filename = `health-screening-report-${sanitizeFilenamePart(payload.patientId)}-${payload.dateKey}.pdf`;
 
-  return new NextResponse(new Uint8Array(pdf), {
+  return new NextResponse(pdfBody, {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${filename}"`,
-      "Content-Length": String(pdf.byteLength),
+      "Content-Length": String(pdfBody.byteLength),
       "Cache-Control": "no-store",
     },
   });

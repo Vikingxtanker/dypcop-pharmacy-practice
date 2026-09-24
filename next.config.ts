@@ -1,10 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["pdfmake", "pdfkit"],
-  outputFileTracingIncludes: {
-    "/api/report-pdf": ["./lib/reports/fonts/**/*"],
-  },
+  serverExternalPackages: [
+    "puppeteer-core",
+    "@sparticuz/chromium-min",
+    "puppeteer",
+  ],
   images: {
     remotePatterns: [
       {

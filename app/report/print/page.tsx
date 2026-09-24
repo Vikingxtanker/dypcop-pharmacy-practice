@@ -6,6 +6,7 @@ import { resolveReportAssets } from "@/lib/reports/report-assets";
 import { buildHealthScreeningReportData, type ScreeningTestRecord } from "@/lib/reports/patient-report-data";
 import { getReportOrigin, redeemReportToken } from "@/lib/reports/report-token";
 import AutoPrint from "./auto-print";
+import ReportReadySignal from "./report-ready";
 import "@/components/reports/report.css";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,7 @@ export default async function PrintReportPage({ searchParams }: PrintPageProps) 
   return (
     <>
       <AutoPrint />
+      <ReportReadySignal />
       <main className="rp-pdf-shell">
         <PatientHealthScreeningReport data={data} assets={assets} />
       </main>

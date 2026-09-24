@@ -6,6 +6,12 @@ export default function AutoPrint() {
   const [phase, setPhase] = useState<string>("preparing");
 
   useEffect(() => {
+    const isPdfRender =
+      new URLSearchParams(window.location.search).has("pdf") || navigator.webdriver === true;
+    if (isPdfRender) {
+      setPhase("manual");
+      return;
+    }
     const trigger = () => {
       window.setTimeout(() => {
         window.print();
