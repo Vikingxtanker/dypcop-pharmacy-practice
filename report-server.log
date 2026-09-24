@@ -1,0 +1,7 @@
+npm notice run dypcop-pharmacy-practice@0.1.0 npx
+npm notice run next start
+▲ Next.js 16.3.5
+- Local:         http://localhost:3124
+- Network:       http://10.2.0.2:3124
+✓ Ready in 187ms
+✓ Running next.config.ts took 47ms

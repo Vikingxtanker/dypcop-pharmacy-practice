@@ -333,6 +333,12 @@ body.rp-pdf-body .rp-sheet,
   position: relative;
   width: var(--report-page-width);
   min-height: var(--report-page-height);
+  /* Column flex so the single, last-page footer anchors to the bottom of the
+     printable A4 boundary: leftover space is absorbed by .rp-content (flex: 1)
+     instead of leaving a gap below the footer. Pagination is unchanged —
+     content taller than one page simply grows the sheet and fragments as before. */
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: var(--report-background);
   font-family: var(--report-font-family);
@@ -527,6 +533,9 @@ body.rp-pdf-body .rp-sheet,
    --------------------------------------------------------- */
 .rp-content {
   position: relative;
+  /* Grows to fill the space between the title strip and the bottom-anchored
+     footer, so the footer never floats up behind short counseling content. */
+  flex: 1 0 auto;
   padding: 0 var(--report-page-padding-x);
   margin-top: var(--report-content-gap);
   min-height: 172mm;
@@ -863,41 +872,6 @@ body.rp-pdf-body .rp-sheet,
   margin-top: 1.2mm;
   font-size: var(--report-font-caption);
   line-height: 1.05;
-}
-
-.rp-footer-mark {
-  margin-top: 2.2mm;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5mm;
-  color: var(--report-maroon);
-}
-
-.rp-footer-mark svg {
-  width: 4.5mm;
-  height: 4.5mm;
-}
-
-.rp-footer-rule {
-  width: 30mm;
-  border-top: 1px solid var(--report-maroon);
-}
-
-.rp-mortar {
-  position: absolute;
-  left: 6mm;
-  bottom: 4mm;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(116, 16, 25, 0.75);
-}
-
-.rp-mortar svg {
-  width: 7mm;
-  height: 7mm;
 }
 
 /* ---------------------------------------------------------
