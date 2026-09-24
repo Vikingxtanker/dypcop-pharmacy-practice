@@ -49,7 +49,7 @@ export default async function OnlineReportPage({ params }: ReportPageProps) {
   const assets = await resolveReportAssets(data);
 
   return (
-    <ReportViewer title="Online Health Screening Report">
+    <ReportViewer title="Online Health Screening Report" downloadToken={token}>
       <PatientHealthScreeningReport data={data} assets={assets} />
     </ReportViewer>
   );

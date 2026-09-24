@@ -50,7 +50,11 @@ export default async function ReportPreviewPage({ searchParams }: PreviewPagePro
   const assets = await resolveReportAssets(data);
 
   return (
-    <ReportViewer title={demo ? "Health Screening Report — Demo Preview" : "Health Screening Report Preview"} dev>
+    <ReportViewer
+      title={demo ? "Health Screening Report — Demo Preview" : "Health Screening Report Preview"}
+      dev
+      downloadTarget={demo ? undefined : { patientId, dateKey }}
+    >
       <PatientHealthScreeningReport data={data} assets={assets} />
     </ReportViewer>
   );

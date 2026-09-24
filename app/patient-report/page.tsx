@@ -8,6 +8,7 @@ import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { istDateKey, istDayRangeUtc, formatScreeningDate, formatScreeningDateShort } from "@/lib/utils";
+import { downloadHealthScreeningReportPdf } from "@/lib/reports/report-pdf-download";
 import Swal from "sweetalert2";
 
 interface PatientRow {
@@ -216,34 +217,11 @@ export default function PatientReportPage() {
     if (!patient || preparing) return;
     setPreparing(true);
     setError(null);
-    const tab = window.open("", "_blank");
     try {
-      const res = await fetch("/api/report-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patientId: patient.id, dateKey }),
-      });
-      if (!res.ok) {
-        let message = `Report preparation failed with status ${res.status}`;
-        try {
-          const body = await res.json();
-          if (body && typeof body.error === "string") message = body.error;
-        } catch {
-          // keep the status-based message
-        }
-        throw new Error(message);
-      }
-      const { token } = (await res.json()) as { token: string };
-      const printUrl = `/report/print?token=${encodeURIComponent(token)}`;
-      if (tab) {
-        tab.location.href = printUrl;
-      } else {
-        router.push(printUrl);
-      }
+      await downloadHealthScreeningReportPdf({ patientId: patient.id, dateKey });
     } catch (err) {
-      tab?.close();
-      console.error("Error preparing print report:", err);
-      Swal.fire("Error", "Could not prepare the print report. Please try again.", "error");
+      console.error("Error downloading report:", err);
+      Swal.fire("Error", err instanceof Error ? err.message : "Could not download the report. Please try again.", "error");
     } finally {
       setPreparing(false);
     }
