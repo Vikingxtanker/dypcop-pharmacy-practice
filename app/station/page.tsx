@@ -114,6 +114,7 @@ const TEST_TYPES = [
   { value: "SpO2", unit: "%", placeholder: "SpO₂ (%)" },
   { value: "Target Weight", unit: "kg", placeholder: "Target Weight (kg)" },
   { value: "FEV", unit: "L", placeholder: "FEV (L)" },
+  { value: "Bone Density (T Score)", unit: "T Score", placeholder: "Bone Density (T Score)" },
   { value: "BP", unit: "mmHg", placeholder: "Systolic/Diastolic (mmHg)" },
   { value: "Counseling", unit: "-", placeholder: "Counseling / Notes" },
 ];
@@ -139,6 +140,7 @@ export default function StationPage() {
   const [summary, setSummary] = useState({
     hemoglobin: "", rbg: "", fbs: "", ppbs: "", ogtt: "", hba1c: "",
     heartRate: "", temperature: "", spo2: "", targetWeight: "", fev: "",
+    boneDensity: "",
     bpSys: "", bpDia: "", counseling: "",
   });
 
@@ -320,6 +322,7 @@ export default function StationPage() {
     addTest("SpO2", getVal("spo2"), "%");
     addTest("Target Weight", getVal("targetWeight"), "kg");
     addTest("FEV", getVal("fev"), "L");
+    addTest("Bone Density (T Score)", getVal("boneDensity"), "T Score");
 
     const sys = getVal("bpSys");
     const dia = getVal("bpDia");
@@ -351,7 +354,7 @@ export default function StationPage() {
 
     if (allOk) {
       Swal.fire("Success", "All tests saved successfully!", "success");
-      setSummary({ hemoglobin: "", rbg: "", fbs: "", ppbs: "", ogtt: "", hba1c: "", heartRate: "", temperature: "", spo2: "", targetWeight: "", fev: "", bpSys: "", bpDia: "", counseling: "" });
+      setSummary({ hemoglobin: "", rbg: "", fbs: "", ppbs: "", ogtt: "", hba1c: "", heartRate: "", temperature: "", spo2: "", targetWeight: "", fev: "", boneDensity: "", bpSys: "", bpDia: "", counseling: "" });
       resetSummaryCounseling();
       setShowSummary(false);
       await loadTestHistory();
@@ -614,6 +617,10 @@ export default function StationPage() {
                         <div className="col-md-6">
                           <label className="form-label">FEV (Liters)</label>
                           <input type="number" step="0.01" className="form-control" name="fev" value={summary.fev} onChange={handleSummaryChange} />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label">Bone Density T Score</label>
+                          <input type="number" step="any" className="form-control" name="boneDensity" value={summary.boneDensity} onChange={handleSummaryChange} />
                         </div>
                         <div className="col-md-3">
                           <label className="form-label">Systolic (mmHg)</label>

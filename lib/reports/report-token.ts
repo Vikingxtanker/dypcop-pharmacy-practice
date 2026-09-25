@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { normalizeIncludedTests } from "./patient-report-data";
+import { normalizeIncludedTests } from "./patient-report-data.ts";
 
 const DEV_FALLBACK_SECRET = "dyp-health-screening-report-dev-secret";
 

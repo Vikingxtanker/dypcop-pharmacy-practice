@@ -10,7 +10,9 @@ interface ReportLaboratoryResultsProps {
 }
 
 const resultAriaLabel = (row: LaboratoryResultRow): string =>
-  `${row.test} result ${row.result || "not recorded"}, ${resultStatusLabel(row.status)}`;
+  row.interpretation
+    ? `${row.test} result ${row.result || "not recorded"}, ${row.interpretation}`
+    : `${row.test} result ${row.result || "not recorded"}, ${resultStatusLabel(row.status)}`;
 
 export default function ReportLaboratoryResults({ results, watermarkSrc }: ReportLaboratoryResultsProps) {
   return (

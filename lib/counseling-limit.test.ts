@@ -5,7 +5,7 @@ import {
   COUNSELING_MAX_CHARS,
   COUNSELING_TOTAL_CAPACITY,
   enforceCounselingLimit,
-} from "./counseling-limit";
+} from "./counseling-limit.ts";
 
 const emptyLines = (text: string) => text.split("\n");
 

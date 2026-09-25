@@ -40,6 +40,8 @@ export interface LaboratoryResultRow {
   unit?: string;
   normalRange?: string;
   status?: ReportStatus;
+  /** Human-readable clinical interpretation (e.g. "Osteoporosis"), when meaningful over the status phrase. */
+  interpretation?: string;
 }
 
 export interface PatientHealthScreeningReportDemographics {
@@ -109,6 +111,7 @@ const LAB_TABLE: LabColumn[] = [
   { type: "SpO2", label: "Oxygen Saturation (SpO\u2082)" },
   { type: "Target Weight", label: "Target Weight" },
   { type: "FEV", label: "Forced Expiratory Volume (FEV1)" },
+  { type: "Bone Density (T Score)", label: "Bone Density (T Score)" },
 ];
 
 /** Canonical ids of the single-measurement report rows, in report display order. */
@@ -132,6 +135,35 @@ export const NORMAL_RANGES: Record<string, string> = {
   "Target Weight": "Per clinician assessment",
   FEV: "Standard chart / clinician assessment",
   BP: "Normal: <120/80 mmHg\nPre-HTN: 120\u2013139/80\u201389 mmHg\nStage 1 HTN: 140\u2013159/90\u201399 mmHg\nStage 2 HTN: \u2265160/\u2265100 mmHg",
+};
+
+/** Canonical report id / station test type for the Bone Density (T Score) test. */
+export const BONE_DENSITY_TEST_ID = "Bone Density (T Score)";
+
+/** Reference wording for the Bone Density (T Score) test, as displayed in the report. */
+export const BONE_DENSITY_REFERENCE_TEXT =
+  "Normal: T score upto -1\nOsteopenia: T score between -1.1 to -2.5\nOsteoporosis: T score above -2.5";
+
+/** WHO Bone Mineral Density categories derived from the T Score. */
+export type BoneDensityTScoreCategory = "Normal" | "Osteopenia" | "Osteoporosis";
+
+/**
+ * Classifies a T Score into the clinical category. Boundaries are inclusive to
+ * avoid value gaps: Normal at T = -1.0 and above, Osteopenia between -2.5 and
+ * -1.0, Osteoporosis below -2.5.
+ */
+export const classifyBoneDensityTScore = (value: number): BoneDensityTScoreCategory => {
+  if (value >= -1) return "Normal";
+  if (value >= -2.5) return "Osteopenia";
+  return "Osteoporosis";
+};
+
+/** Report status color for the Bone Density (T Score) row. */
+export const boneDensityStatus = (value: number | null | undefined): ReportStatus => {
+  if (value === undefined || value === null || !Number.isFinite(value)) return "info";
+  if (value >= -1) return "normal";
+  if (value >= -2.5) return "low";
+  return "high";
 };
 
 export const inferTestStatus = (type: string, value?: number | string | null): ReportStatus => {
@@ -212,6 +244,23 @@ function buildLabRows(records: ScreeningTestRecord[]): Array<{ id: string; row: 
     const value = displayValue(rec);
     const unit = rec.unit || "";
     if (!value && rec.test_type !== "Counseling") continue;
+    if (col.type === BONE_DENSITY_TEST_ID) {
+      const raw = rec.value_numeric ?? (rec.value_text ? parseFloat(String(rec.value_text)) : Number.NaN);
+      const hasNumeric = raw !== undefined && raw !== null && Number.isFinite(Number(raw));
+      const category = hasNumeric ? classifyBoneDensityTScore(Number(raw)) : null;
+      rows.push({
+        id: col.type,
+        row: {
+          test: col.label,
+          result: value ? (unit ? `${value} ${unit}` : value) : "N/A",
+          unit,
+          normalRange: hasNumeric ? `${category}\n${BONE_DENSITY_REFERENCE_TEXT}` : BONE_DENSITY_REFERENCE_TEXT,
+          status: boneDensityStatus(hasNumeric ? Number(raw) : null),
+          interpretation: category ?? undefined,
+        },
+      });
+      continue;
+    }
     rows.push({
       id: col.type,
       row: {
@@ -377,6 +426,7 @@ export const demoReportData = (): PatientHealthScreeningReportData => {
     { test: "Oxygen Saturation (SpO\u2082)", result: "98 %", unit: "%", normalRange: NORMAL_RANGES.SpO2, status: "normal" },
     { test: "Target Weight", result: "72 kg", unit: "kg", normalRange: NORMAL_RANGES["Target Weight"], status: "info" },
     { test: "Forced Expiratory Volume (FEV1)", result: "3.1 L", unit: "L", normalRange: NORMAL_RANGES.FEV, status: "info" },
+    { test: "Bone Density (T Score)", result: "-1.8 T Score", unit: "T Score", normalRange: `Osteopenia\n${BONE_DENSITY_REFERENCE_TEXT}`, status: "low", interpretation: "Osteopenia" },
     { test: "Blood Pressure", result: "138/86 mmHg", unit: "mmHg", normalRange: NORMAL_RANGES.BP, status: "info" },
     ...DEMO_EXTRA_ROWS,
   ];

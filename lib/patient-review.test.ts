@@ -182,3 +182,43 @@ test("history text is trimmed and capped at the schema-safe length", () => {
   assert.equal(cleaned.startsWith("x"), true);
   assert.equal(sanitizeHistory(12345), "");
 });
+
+test("review measurement types are exactly the partial-index scope (Height/Weight/BMI only)", () => {
+  assert.deepEqual(Object.values(MEASUREMENT_TEST_TYPES) as string[], ["Height", "Weight", "BMI"]);
+});
+
+test("clinical test types (RBG, FEV, BP, Temperature, SpO2, Hemoglobin) are outside the review uniqueness scope", () => {
+  const reviewTypes = new Set<string>(Object.values(MEASUREMENT_TEST_TYPES));
+  for (const clinical of ["RBG", "FEV", "BP", "Temperature", "SpO2", "Hemoglobin"]) {
+    assert.equal(
+      reviewTypes.has(clinical),
+      false,
+      `${clinical} must not be covered by the partial unique index, so legitimate same-day repeats stay possible`,
+    );
+  }
+});
+
+test("same-day re-save of Height/Weight/BMI is idempotent (rows collapse under the partial index)", () => {
+  const first = buildMeasurementRows("p1", 175, 70, 22.9);
+  const resave = buildMeasurementRows("p1", 175, 70, 22.9);
+  assert.deepEqual(resave, first, "a same-day re-save must reproduce the identical row batch");
+  assert.equal(resave.length, 3);
+});
+
+test("review rows and submissions carry no client date: the IST day is decided server-side only", () => {
+  for (const row of buildMeasurementRows("p1", 175, 70, 22.9)) {
+    assert.equal("created_at" in row, false);
+    assert.deepEqual(Object.keys(row).sort(), ["patient_id", "test_type", "unit", "value_numeric"]);
+  }
+  const res = prepareReviewSubmission({ patientId: "p1", heightCm: 175, weightKg: 70 });
+  assert.equal(res.ok, true);
+  if (res.ok) {
+    assert.deepEqual(
+      Object.keys(res.submission).sort(),
+      ["bmi", "heightCm", "pastMedical", "pastMedication", "patientId", "weightKg"],
+    );
+    for (const key of ["createdAt", "updatedAt", "date"]) {
+      assert.equal(key in res.submission, false, `client must never place a date on the submission (${key})`);
+    }
+  }
+});

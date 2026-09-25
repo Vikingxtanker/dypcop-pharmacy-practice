@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mintReportToken, redeemReportToken, buildReportUrl } from "./report-token";
+import { mintReportToken, redeemReportToken, buildReportUrl } from "./report-token.ts";
 
 const ORIGINAL_SECRET = process.env.REPORT_TOKEN_SECRET;
 
