@@ -224,28 +224,9 @@ export default function RegisterPage() {
     handleClear();
   };
 
-  const canUseStation = user?.role === "admin" || user?.role === "station";
-
-  const goToStation = (patientId: string) => {
-    router.push(`/station?patientId=${encodeURIComponent(patientId)}`);
-  };
-
-  const handleContinueWithoutChanges = () => {
-    if (!reviewPatient) return;
-    if (canUseStation) {
-      goToStation(reviewPatient.id);
-    } else {
-      Swal.fire({
-        icon: "info",
-        title: "Ready for Testing",
-        html: `<p>Patient <strong>${escapeHtml(reviewPatient.name)}</strong> can proceed to the testing station.</p><p><strong>Patient ID:</strong> <code>${escapeHtml(reviewPatient.id)}</code></p>`,
-        confirmButtonText: "Done",
-      });
-    }
-  };
-
   const handleSaveReview = async () => {
     if (!reviewPatient) return;
+    if (reviewSaving) return;
 
     if (formData.height.trim()) {
       const parsed = parseOptionalMeasurement(formData.height, "height");
@@ -285,25 +266,13 @@ export default function RegisterPage() {
         return;
       }
 
-      if (canUseStation) {
-        await Swal.fire({
-          icon: "success",
-          title: "Saved",
-          text: "Patient information updated. Continuing to the testing station...",
-          timer: 1500,
-          showConfirmButton: false,
-          timerProgressBar: true,
-        });
-        goToStation(reviewPatient.id);
-      } else {
-        await Swal.fire({
-          icon: "success",
-          title: "Saved",
-          html: `<p>Patient information updated successfully.</p><p><strong>Patient ID:</strong> <code>${escapeHtml(reviewPatient.id)}</code></p><p>Direct the patient to the testing station.</p>`,
-          confirmButtonText: "Done",
-        });
-        handleCancelReview();
-      }
+      await Swal.fire({
+        icon: "success",
+        title: "Saved",
+        html: `<p>Patient information updated successfully.</p><p><strong>Patient ID:</strong> <code>${escapeHtml(reviewPatient.id)}</code></p>`,
+        confirmButtonText: "Search another patient",
+      });
+      handleCancelReview();
     } catch (err) {
       console.error("Review save error:", err);
       Swal.fire("Error", "Network error. No changes were saved. Please try again.", "error");
@@ -570,14 +539,9 @@ export default function RegisterPage() {
 
               <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <span className="text-muted small">Saved measurements carry the registration date &amp; time.</span>
-                <div className="d-flex gap-2 flex-wrap">
-                  <button type="button" className="btn btn-outline-secondary" onClick={handleContinueWithoutChanges}>
-                    Continue without Changes
-                  </button>
-                  <button type="button" className="btn btn-success" onClick={handleSaveReview} disabled={reviewSaving}>
-                    {reviewSaving ? "Saving..." : "Save & Continue to Testing"}
-                  </button>
-                </div>
+                <button type="button" className="btn btn-success" onClick={handleSaveReview} disabled={reviewSaving}>
+                  {reviewSaving ? "Saving..." : "Save"}
+                </button>
               </div>
             </div>
           ) : (
