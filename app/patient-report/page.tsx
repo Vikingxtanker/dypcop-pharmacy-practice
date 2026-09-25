@@ -7,6 +7,7 @@ import HssNavbar from "@/components/layout/HssNavbar";
 import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
+import { calculateAgeFromDob } from "@/lib/age";
 import { istDateKey, istDayRangeUtc, formatScreeningDate, formatScreeningDateShort } from "@/lib/utils";
 import { downloadHealthScreeningReportPdf } from "@/lib/reports/report-pdf-download";
 import { getAvailableReportTests, type ReportTestOption } from "@/lib/reports/patient-report-data";
@@ -16,7 +17,8 @@ import Swal from "sweetalert2";
 interface PatientRow {
   id: string;
   name: string;
-  age: number | string;
+  dob?: string | null;
+  age?: number | string;
   gender: string;
   phone?: string;
   mobile?: string;
@@ -291,7 +293,7 @@ export default function PatientReportPage() {
             <div className="bg-white p-4 shadow rounded mb-4">
               <h3>Patient Details</h3>
               <p><strong>Name:</strong> {patient.name}</p>
-              <p><strong>Age:</strong> {patient.age}</p>
+              <p><strong>Age:</strong> {calculateAgeFromDob(patient.dob) ?? "N/A"}</p>
               <p><strong>Gender:</strong> {patient.gender}</p>
               <p><strong>Phone:</strong> {patient.phone || patient.mobile || "N/A"}</p>
               <p><strong>Address:</strong> {patient.address || "N/A"}</p>

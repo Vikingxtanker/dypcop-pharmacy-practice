@@ -6,13 +6,14 @@ import HssNavbar from "@/components/layout/HssNavbar";
 import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
+import { calculateAgeFromDob } from "@/lib/age";
 import { formatIST } from "@/lib/utils";
 import Swal from "sweetalert2";
 
 interface Patient {
   id: string;
   name: string;
-  age: number;
+  dob?: string | null;
   gender: string;
   phone: string;
   created_at: string;
@@ -75,7 +76,7 @@ export default function DashboardPage() {
     try {
       const { data: patientsList, error: patientsError } = await supabase
         .from("patients")
-        .select("id, name, age, gender, phone, created_at")
+        .select("id, name, dob, gender, phone, created_at")
         .order("created_at", { ascending: false });
 
       if (patientsError) throw patientsError;
@@ -124,7 +125,7 @@ export default function DashboardPage() {
           srNo,
           id: p.id,
           name: p.name || "",
-          age: p.age || "",
+          age: calculateAgeFromDob(p.dob) ?? "",
           gender: p.gender || "",
           phone: p.phone || "",
           hb: latestByType["Hemoglobin"]?.value_numeric ?? "",

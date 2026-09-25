@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { formatIST, istDateKey, istDayRangeUtc } from "@/lib/utils";
 import { displayHistory, formatMeasurementLine } from "@/lib/station-patient-display";
+import { calculateAgeFromDob } from "@/lib/age";
 import Swal from "sweetalert2";
 import {
   COUNSELING_LIMIT_MESSAGE,
@@ -82,7 +83,7 @@ function useCounselingField(initialValue = "") {
 interface PatientRow {
   id: string;
   name: string;
-  age: number | string;
+  dob?: string | null;
   gender: string;
   height?: number | null;
   weight?: number | null;
@@ -178,7 +179,7 @@ export default function StationPage() {
     try {
       const { data, error } = await supabase
         .from("patients")
-        .select("id, name, age, gender, height, weight, bmi, past_medical, past_medication")
+        .select("id, name, dob, gender, height, weight, bmi, past_medical, past_medication")
         .eq("id", trimmed)
         .single();
 
@@ -503,7 +504,7 @@ export default function StationPage() {
                 <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                   <div className="me-3">
                     <h5><strong>Name:</strong> {currentPatient.name}</h5>
-                    <p className="mb-0">Age: {currentPatient.age} | Gender: {currentPatient.gender} | ID: {currentPatient.id}</p>
+                    <p className="mb-0">Age: {(calculateAgeFromDob(currentPatient.dob) ?? "—")} | Gender: {currentPatient.gender} | ID: {currentPatient.id}</p>
                     <p className="mb-0 mt-1">{formatMeasurementLine(currentPatient)}</p>
                   </div>
                   <button className="btn btn-secondary" onClick={handleClear}>Change Patient</button>

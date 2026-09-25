@@ -6,6 +6,7 @@ import HssNavbar from "@/components/layout/HssNavbar";
 import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/lib/auth-context";
 import { computeBmi, parseOptionalMeasurement } from "@/lib/patient-review";
+import { calculateAgeFromDob } from "@/lib/age";
 import { formatIST, istDateKey } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
@@ -26,6 +27,7 @@ const stripNamePrefix = (value: string) => {
 interface ReviewPatientRow {
   id: string;
   name: string;
+  dob?: string | null;
   age?: number | string | null;
   gender?: string | null;
   phone?: string | null;
@@ -107,12 +109,8 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (formData.dob) {
-      const d = new Date(formData.dob);
-      const now = new Date();
-      let yrs = now.getFullYear() - d.getFullYear();
-      const m = now.getMonth() - d.getMonth();
-      if (m < 0 || (m === 0 && now.getDate() < d.getDate())) yrs--;
-      setFormData((prev) => ({ ...prev, age: yrs >= 0 ? String(yrs) : "" }));
+      const yrs = calculateAgeFromDob(formData.dob);
+      setFormData((prev) => ({ ...prev, age: yrs !== null ? String(yrs) : "" }));
     }
   }, [formData.dob]);
 
@@ -182,7 +180,7 @@ export default function RegisterPage() {
     try {
       let query = supabase
         .from("patients")
-        .select("id,name,age,gender,phone,height,weight,bmi,past_medical,past_medication,created_at")
+        .select("id,name,dob,gender,phone,height,weight,bmi,past_medical,past_medication,created_at")
         .limit(10);
       if (/^\d{10}$/.test(q)) query = query.eq("phone", q);
       else query = query.ilike("id", `%${q}%`);
@@ -283,7 +281,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { name, dob, age, gender, height, weight, bmi, phone, address, tobacco, smoking, alcohol, married, allergy, allergyDetails, pastMedical, pastMedication } = formData;
+    const { name, dob, gender, height, weight, bmi, phone, address, tobacco, smoking, alcohol, married, allergy, allergyDetails, pastMedical, pastMedication } = formData;
 
     if (!/^\d{10}$/.test(phone)) {
       Swal.fire({ icon: "error", title: "Invalid Phone", text: "Phone number must be 10 digits" });
@@ -302,7 +300,9 @@ export default function RegisterPage() {
       id: patientId,
       name: trimmedName,
       dob,
-      age: age ? parseInt(age) : null,
+      // Compatibility cache only — populated from DOB. DOB is the source of truth
+      // for age; nothing downstream trusts `patients.age`.
+      age: dob ? calculateAgeFromDob(dob) : null,
       gender,
       phone,
       address,
@@ -406,7 +406,7 @@ export default function RegisterPage() {
                     >
                       <span>
                         <strong>{p.name}</strong>
-                        <span className="text-muted small"> ({p.age ?? "?"} · {p.gender ?? "?"})</span>
+                        <span className="text-muted small"> ({calculateAgeFromDob(p.dob) ?? "?"} · {p.gender ?? "?"})</span>
                         <div className="small text-muted">
                           ID: {p.id}
                           {p.phone ? ` · ${p.phone}` : ""}
@@ -429,7 +429,7 @@ export default function RegisterPage() {
               <div className="mb-3">
                 <h5 className="mb-0">{reviewPatient.name}</h5>
                 <div className="text-muted">
-                  Patient ID: {reviewPatient.id} · {reviewPatient.age ?? "?"} yrs · {reviewPatient.gender ?? "?"}
+                  Patient ID: {reviewPatient.id} · {calculateAgeFromDob(reviewPatient.dob) ?? "?"} yrs · {reviewPatient.gender ?? "?"}
                   {reviewPatient.phone ? ` · ${reviewPatient.phone}` : ""}
                 </div>
               </div>

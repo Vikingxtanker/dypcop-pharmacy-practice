@@ -1,4 +1,5 @@
-import { formatScreeningDate } from "@/lib/utils";
+import { formatScreeningDate } from "../utils.ts";
+import { calculateAgeFromDob } from "../age.ts";
 
 export type ReportStatus = "normal" | "high" | "low" | "info";
 
@@ -63,6 +64,9 @@ export interface PatientHealthScreeningReportData {
 export interface PatientReportRow {
   id: string;
   name: string;
+  /** DOB is the authoritative source for the report age. */
+  dob?: string | null;
+  /** Compatibility/cache field; NOT used to derive the report age. */
   age?: number | string | null;
   gender?: string | null;
   phone?: string | null;
@@ -312,12 +316,18 @@ export function buildHealthScreeningReportData(
   const phone = patientRow.phone || patientRow.mobile || undefined;
   const bmi = patientRow.bmi !== undefined && patientRow.bmi !== null ? String(patientRow.bmi) : undefined;
 
+  // Age is always re-derived from DOB against the screening date (dateKey, IST).
+  // The stored `patients.age` column is never trusted — it goes stale after a
+  // birthday, and a historical report must not change just because the patient
+  // had a birthday after their screening.
+  const reportedAge = calculateAgeFromDob(patientRow.dob, dateKey);
+
   return {
     patient: {
       name: patientRow.name || "Unknown",
       phone,
       patientId: patientRow.id,
-      age: patientRow.age !== undefined && patientRow.age !== null ? patientRow.age : undefined,
+      age: reportedAge !== null ? reportedAge : undefined,
       gender: patientRow.gender || undefined,
       bmi,
       date: dateKey ? formatScreeningDate(dateKey) : "",

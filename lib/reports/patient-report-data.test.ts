@@ -11,12 +11,13 @@ import {
   resultStatusLabel,
   resultStatusTone,
   type ScreeningTestRecord,
-} from "./patient-report-data";
+} from "./patient-report-data.ts";
 
 const patient = {
   id: "HSC-P-00127",
   name: "Aarav Sharma",
-  age: 24,
+  dob: "2002-09-25",
+  age: 99,
   gender: "Male",
   phone: "9876543210",
   bmi: 23.45,
@@ -40,6 +41,26 @@ test("falls back to mobile for phone, omits empty values", () => {
   assert.equal(data.patient.age, undefined);
   assert.equal(data.patient.bmi, undefined);
   assert.equal(data.patient.gender, undefined);
+});
+
+test("report age comes from DOB, never from the stale stored patients.age", () => {
+  const stale = { id: "P1", name: "Patient", dob: "2006-09-25", age: 19, gender: "Female" };
+  const data = buildHealthScreeningReportData(stale, [], "2026-09-25");
+  assert.equal(data.patient.age, 20);
+});
+
+test("a wildly wrong stored age is ignored when DOB yields a sane age", () => {
+  const stale = { id: "P2", name: "Patient", dob: "2002-09-25", age: 99, gender: "Male" };
+  const data = buildHealthScreeningReportData(stale, [], "2026-09-25");
+  assert.equal(data.patient.age, 24);
+});
+
+test("historical report age is pinned to the screening date, not a later birthday", () => {
+  const patientRow = { id: "P3", name: "Patient", dob: "2006-09-25", age: 20, gender: "Female" };
+  const onScreeningDay = buildHealthScreeningReportData(patientRow, [], "2026-09-25");
+  assert.equal(onScreeningDay.patient.age, 20);
+  const dayBeforeBirthday = buildHealthScreeningReportData(patientRow, [], "2026-09-24");
+  assert.equal(dayBeforeBirthday.patient.age, 19);
 });
 
 test("picks latest record per test type", () => {
