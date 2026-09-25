@@ -422,14 +422,9 @@ export default function RegisterPage() {
 
           {reviewPatient ? (
             <div className="bg-white p-4 shadow rounded" style={{ maxWidth: 820, margin: "0 auto" }}>
-              <div className="d-flex justify-content-between align-items-start mb-3">
-                <div>
-                  <h4 className="mb-1">Patient Information Review</h4>
-                  <span className="badge bg-success text-uppercase">Returning Patient</span>
-                </div>
-                <button type="button" className="btn btn-outline-secondary btn-sm" onClick={handleCancelReview}>
-                  Cancel
-                </button>
+              <div className="mb-3">
+                <h4 className="mb-1">Patient Information Review</h4>
+                <span className="badge bg-success text-uppercase">Returning Patient</span>
               </div>
               <div className="mb-3">
                 <h5 className="mb-0">{reviewPatient.name}</h5>
@@ -539,9 +534,14 @@ export default function RegisterPage() {
 
               <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <span className="text-muted small">Saved measurements carry the registration date &amp; time.</span>
-                <button type="button" className="btn btn-success" onClick={handleSaveReview} disabled={reviewSaving}>
-                  {reviewSaving ? "Saving..." : "Save"}
-                </button>
+                <div className="d-flex gap-2">
+                  <button type="button" className="btn btn-outline-secondary" onClick={handleCancelReview}>
+                    Cancel
+                  </button>
+                  <button type="button" className="btn btn-success" onClick={handleSaveReview} disabled={reviewSaving}>
+                    {reviewSaving ? "Saving..." : "Save"}
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
