@@ -7,6 +7,7 @@ import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { formatIST, istDateKey, istDayRangeUtc } from "@/lib/utils";
+import { displayHistory, formatMeasurementLine } from "@/lib/station-patient-display";
 import Swal from "sweetalert2";
 import {
   COUNSELING_LIMIT_MESSAGE,
@@ -92,6 +93,11 @@ interface PatientRow {
   name: string;
   age: number | string;
   gender: string;
+  height?: number | null;
+  weight?: number | null;
+  bmi?: number | null;
+  past_medical?: string | null;
+  past_medication?: string | null;
 }
 
 interface TestRecord {
@@ -184,7 +190,7 @@ export default function StationPage() {
     try {
       const { data, error } = await supabase
         .from("patients")
-        .select("id, name, age, gender")
+        .select("id, name, age, gender, height, weight, bmi, past_medical, past_medication")
         .eq("id", trimmed)
         .single();
 
@@ -521,12 +527,17 @@ export default function StationPage() {
           ) : (
             <div>
               <div className="bg-white p-4 shadow rounded mb-4">
-                <div className="d-flex justify-content-between align-items-center">
-                  <div>
+                <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                  <div className="me-3">
                     <h5><strong>Name:</strong> {currentPatient.name}</h5>
                     <p className="mb-0">Age: {currentPatient.age} | Gender: {currentPatient.gender} | ID: {currentPatient.id}</p>
+                    <p className="mb-0 mt-1">{formatMeasurementLine(currentPatient)}</p>
                   </div>
                   <button className="btn btn-secondary" onClick={handleClear}>Change Patient</button>
+                </div>
+                <div className="mt-3 border-top pt-2 small">
+                  <p className="mb-0"><strong>Past Medical History:</strong> <span className="text-break" style={{ whiteSpace: "pre-wrap", overflowWrap: "break-word" }}>{displayHistory(currentPatient.past_medical)}</span></p>
+                  <p className="mb-0 mt-1"><strong>Past Medication History:</strong> <span className="text-break" style={{ whiteSpace: "pre-wrap", overflowWrap: "break-word" }}>{displayHistory(currentPatient.past_medication)}</span></p>
                 </div>
               </div>
 
