@@ -1,27 +1,42 @@
--- Registration-time "Patient Information Review / Update" for returning patients.
+-- Corrective migration for record_patient_review (PostgreSQL error 42702).
 --
--- Atomicity: the registration update writes to two tables (dated measurements in
--- patient_tests and current fields on patients). A single Postgres function wraps
--- them in one transaction so a failure can never leave the data in a partially
--- updated state.
+-- HISTORY
+--  20260925120000_record_patient_review.sql introduced the SECURITY INVOKER RPC
+--  and was applied to production. In production every call fails with:
 --
--- Dated measurements: reuse the existing canonical dated-clinical table
--- public.patient_tests. Height/Weight/BMI for a review are stored as rows with
--- test_type 'Height' (cm), 'Weight' (kg) and 'BMI' (kg/m2). The existing
--- functional unique index patient_tests_patient_ist_day_test_type_key already
--- allows at most one of each per patient per IST calendar day; the ON CONFLICT
--- clause updates the same-day row instead of erroring, keeping re-saves
--- idempotent while never touching historical (prior-day) rows.
+--    patient-review: record_patient_review failed {
+--      code: '42702',
+--      details: 'It could refer to either a PL/pgSQL variable or a table column.',
+--      message: 'column reference "patient_id" is ambiguous'
+--    }
 --
--- Current fields: public.patients.height/weight/bmi are refreshed only when a new
--- measured value is provided (coalesce keeps the last known value otherwise), and
--- public.patients.past_medical / past_medication carry the current history, which
--- registration staff edits in place (the existing canonical model for history).
+-- ROOT CAUSE
+--  The function is declared with RETURNS TABLE (patient_id text, ...). PL/pgSQL
+--  turns each RETURNS TABLE output column name into a variable that is in scope
+--  for the entire function body. The three upsert statements then write:
 --
--- Security: SECURITY INVOKER + RLS is applied on every statement, so the function
--- runs with the privileges of the calling Postgres role (the anon key in this
--- app). A patient hidden from the calling role is not visible to the EXISTS guard
--- and the UPDATE touches zero rows, preserving organization isolation.
+--    insert into public.patient_tests (patient_id, test_type, value_numeric, unit, created_at)
+--    values (p_patient_id, ...)
+--    on conflict (patient_id, ((created_at at time zone 'Asia/Kolkata')::date), test_type)
+--
+--  In both the INSERT column list and the ON CONFLICT conflict-target list the
+--  identifier `patient_id` is syntactically a column of public.patient_tests, but
+--  it is ALSO the name of a PL/pgSQL variable. PostgreSQL refuses to guess
+--  between the two and raises error 42702 ("column reference is ambiguous").
+--
+-- FIX
+--  1. A `#variable_conflict use_column` pragma at the top of the body tells
+--     PL/pgSQL to resolve colliding identifiers in favour of table columns.
+--     This is semantically lossless here: every bare `patient_id` occurrence is
+--     a mandatory column reference, never a use of the output variable. It is
+--     the one place aliases cannot help, because PostgreSQL does not allow the
+--     INSERT column list or the ON CONFLICT target to be table-qualified.
+--  2. Every other column reference is table-qualified (p.height, p.id, ...) so
+--     no other identifier can be mistaken for a variable.
+--
+-- The signature, return type, output column names, security INVOKER behaviour,
+-- `set search_path = public`, all grants, IST-day idempotency and the rest of
+-- the intended behaviour are unchanged from the original migration.
 
 create or replace function public.record_patient_review(
   p_patient_id text,
