@@ -51,6 +51,9 @@ export interface PatientHealthScreeningReportDemographics {
   age?: number | string;
   gender?: string;
   bmi?: number | string;
+  /** Vital measurements recorded on the screening day (latest record per type). */
+  temperature?: string;
+  spo2?: string;
   date: string;
   address?: string;
 }
@@ -97,6 +100,12 @@ interface LabColumn {
   type: string;
   label: string;
   unitKey?: "unit";
+  /**
+   * "demographic" measurements are vital signs: they are extracted into the
+   * Demographics section instead of becoming selectable/rendered laboratory rows.
+   * The canonical id stays in REPORT_LAB_TEST_IDS so legacy tokens keep working.
+   */
+  section?: "demographic";
 }
 
 const LAB_TABLE: LabColumn[] = [
@@ -107,15 +116,36 @@ const LAB_TABLE: LabColumn[] = [
   { type: "OGTT", label: "Oral Glucose Tolerance Test (OGTT)" },
   { type: "HbA1c", label: "Glycated Hemoglobin (HbA1c)" },
   { type: "Heart Rate", label: "Heart Rate" },
-  { type: "Temperature", label: "Body Temperature" },
-  { type: "SpO2", label: "Oxygen Saturation (SpO\u2082)" },
+  { type: "Temperature", label: "Body Temperature", section: "demographic" },
+  { type: "SpO2", label: "Oxygen Saturation (SpO\u2082)", section: "demographic" },
   { type: "Target Weight", label: "Target Weight" },
   { type: "FEV", label: "Forced Expiratory Volume (FEV1)" },
   { type: "Bone Density (T Score)", label: "Bone Density (T Score)" },
 ];
 
-/** Canonical ids of the single-measurement report rows, in report display order. */
+/**
+ * Canonical ids of the single-measurement report rows, in report display order.
+ * Includes the demographic vitals so legacy report tokens that name them still
+ * validate; they are never rendered as laboratory rows (see buildLabRows).
+ */
 export const REPORT_LAB_TEST_IDS: readonly string[] = LAB_TABLE.map((col) => col.type);
+
+/** Canonical ids displayed in the Demographics section rather than as laboratory rows. */
+export const REPORT_DEMOGRAPHIC_VITAL_TEST_IDS: readonly string[] = LAB_TABLE
+  .filter((col) => col.section === "demographic")
+  .map((col) => col.type);
+
+/** Demographics field each demographic vital is shown under. */
+const DEMOGRAPHIC_VITAL_FIELD: Record<string, "temperature" | "spo2"> = {
+  Temperature: "temperature",
+  SpO2: "spo2",
+};
+
+/** Unit used for a demographic vital when the stored record carries none. */
+const DEMOGRAPHIC_VITAL_UNIT: Record<string, string> = {
+  Temperature: "\u00b0C",
+  SpO2: "%",
+};
 
 /** Canonical id of the composite Blood Pressure report row (Systolic/Diastolic pair or a BP record). */
 export const REPORT_BP_TEST_ID = "BP";
@@ -229,16 +259,45 @@ const displayValue = (rec: ScreeningTestRecord): string => {
 };
 
 /**
+ * Extracts the demographic vital measurements (Temperature, SpO2) from the day's
+ * records, formatted with the unit the station stored. These are vital signs, not
+ * laboratory tests, so they never depend on the laboratory test selection and are
+ * never rendered as laboratory rows. The same latestByType/displayValue pair that
+ * feeds the laboratory rows is used, so a vital keeps reporting exactly the reading
+ * it reported while it was still a laboratory row.
+ */
+function buildDemographicVitals(
+  records: ScreeningTestRecord[],
+): Pick<PatientHealthScreeningReportDemographics, "temperature" | "spo2"> {
+  const latest = latestByType(records);
+  const vitals: Partial<Pick<PatientHealthScreeningReportDemographics, "temperature" | "spo2">> = {};
+  for (const type of REPORT_DEMOGRAPHIC_VITAL_TEST_IDS) {
+    const rec = latest.get(type);
+    const field = DEMOGRAPHIC_VITAL_FIELD[type];
+    if (!rec || !field) continue;
+    const value = displayValue(rec);
+    if (!value) continue;
+    const unit = (rec.unit || DEMOGRAPHIC_VITAL_UNIT[type] || "").trim();
+    const alreadyUnit = unit !== "" && value.toLowerCase().endsWith(unit.toLowerCase());
+    vitals[field] = unit && !alreadyUnit ? `${value} ${unit}` : value;
+  }
+  return vitals as Pick<PatientHealthScreeningReportDemographics, "temperature" | "spo2">;
+}
+
+/**
  * Builds the reportable Laboratory Results rows (and their canonical ids) for the
  * day's screening records. Latest-per-type wins; Systolic/Diastolic pairing or a BP
- * record collapses to the single "Blood Pressure" row. This is the single source of
- * truth for both the checkbox options and the rows rendered in the report.
+ * record collapses to the single "Blood Pressure" row. Demographic vitals
+ * (Temperature, SpO2) are skipped here — they belong to the Demographics section.
+ * This is the single source of truth for both the checkbox options and the rows
+ * rendered in the report.
  */
 function buildLabRows(records: ScreeningTestRecord[]): Array<{ id: string; row: LaboratoryResultRow }> {
   const latest = latestByType(records);
   const rows: Array<{ id: string; row: LaboratoryResultRow }> = [];
 
   for (const col of LAB_TABLE) {
+    if (col.section === "demographic") continue;
     const rec = latest.get(col.type);
     if (!rec) continue;
     const value = displayValue(rec);
@@ -364,6 +423,7 @@ export function buildHealthScreeningReportData(
 
   const phone = patientRow.phone || patientRow.mobile || undefined;
   const bmi = patientRow.bmi !== undefined && patientRow.bmi !== null ? String(patientRow.bmi) : undefined;
+  const vitals = buildDemographicVitals(records);
 
   // Age is always re-derived from DOB against the screening date (dateKey, IST).
   // The stored `patients.age` column is never trusted — it goes stale after a
@@ -379,6 +439,8 @@ export function buildHealthScreeningReportData(
       age: reportedAge !== null ? reportedAge : undefined,
       gender: patientRow.gender || undefined,
       bmi,
+      temperature: vitals.temperature,
+      spo2: vitals.spo2,
       date: dateKey ? formatScreeningDate(dateKey) : "",
       address: patientRow.address || undefined,
     },
@@ -422,8 +484,6 @@ export const demoReportData = (): PatientHealthScreeningReportData => {
     { test: "Oral Glucose Tolerance Test (OGTT)", result: "132 mg/dL", unit: "mg/dL", normalRange: NORMAL_RANGES.OGTT, status: "normal" },
     { test: "Glycated Hemoglobin (HbA1c)", result: "5.4 %", unit: "%", normalRange: NORMAL_RANGES.HbA1c, status: "normal" },
     { test: "Heart Rate", result: "74 /min", unit: "/min", normalRange: NORMAL_RANGES["Heart Rate"], status: "normal" },
-    { test: "Body Temperature", result: "36.8 \u00b0C", unit: "\u00b0C", normalRange: NORMAL_RANGES.Temperature, status: "normal" },
-    { test: "Oxygen Saturation (SpO\u2082)", result: "98 %", unit: "%", normalRange: NORMAL_RANGES.SpO2, status: "normal" },
     { test: "Target Weight", result: "72 kg", unit: "kg", normalRange: NORMAL_RANGES["Target Weight"], status: "info" },
     { test: "Forced Expiratory Volume (FEV1)", result: "3.1 L", unit: "L", normalRange: NORMAL_RANGES.FEV, status: "info" },
     { test: "Bone Density (T Score)", result: "-1.8 T Score", unit: "T Score", normalRange: `Osteopenia\n${BONE_DENSITY_REFERENCE_TEXT}`, status: "low", interpretation: "Osteopenia" },
@@ -439,6 +499,8 @@ export const demoReportData = (): PatientHealthScreeningReportData => {
       age: 24,
       gender: "Male",
       bmi: "23.45",
+      temperature: "36.8 \u00b0C",
+      spo2: "98 %",
       date: "25 September 2026",
       address: "Pradhikaran, Nigdi, Pune, Maharashtra",
     },

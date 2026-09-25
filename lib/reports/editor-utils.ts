@@ -104,7 +104,7 @@ export interface ReportDesignToken {
 }
 
 export const EDITOR_DESIGN_TOKENS: ReportDesignToken[] = [
-  { name: "--report-header-height", label: "Header height", defaultValue: "35mm" },
+  { name: "--report-header-height", label: "Header height", defaultValue: "31mm" },
   { name: "--report-header-margin-top", label: "Header top margin", defaultValue: "5mm" },
   { name: "--report-logo-size", label: "Logo size", defaultValue: "26mm" },
   { name: "--report-title-height", label: "Title bar height", defaultValue: "11mm" },

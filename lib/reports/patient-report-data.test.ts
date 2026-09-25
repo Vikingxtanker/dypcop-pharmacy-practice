@@ -96,6 +96,134 @@ test("Blood Pressure falls back to the text row when no pairing exists", () => {
   assert.equal(bp?.status, "high");
 });
 
+const VITAL_DAY: ScreeningTestRecord[] = [
+  { test_type: "Hemoglobin", value_numeric: 14.2, value_text: null, unit: "g/dL", created_at: "2026-09-25T02:00:00Z" },
+  { test_type: "Temperature", value_numeric: 36.8, value_text: null, unit: "\u00b0C", created_at: "2026-09-25T02:01:00Z" },
+  { test_type: "SpO2", value_numeric: 98, value_text: null, unit: "%", created_at: "2026-09-25T02:02:00Z" },
+];
+
+test("Temperature and SpO2 are reported in demographics with their recorded unit", () => {
+  const data = buildHealthScreeningReportData(patient, VITAL_DAY, "2026-09-25");
+  assert.equal(data.patient.temperature, "36.8 \u00b0C");
+  assert.equal(data.patient.spo2, "98 %");
+});
+
+test("demographic vitals fall back to the clinical unit when none was stored", () => {
+  const records: ScreeningTestRecord[] = [
+    { test_type: "Temperature", value_numeric: 36.8, value_text: null, unit: null, created_at: "2026-09-25T02:01:00Z" },
+    { test_type: "SpO2", value_numeric: 98, value_text: null, unit: null, created_at: "2026-09-25T02:02:00Z" },
+  ];
+  const data = buildHealthScreeningReportData(patient, records, "2026-09-25");
+  assert.equal(data.patient.temperature, "36.8 \u00b0C");
+  assert.equal(data.patient.spo2, "98 %");
+});
+
+test("demographic vitals use the latest record of the day, newest-first as stored", () => {
+  const records: ScreeningTestRecord[] = [
+    { test_type: "Temperature", value_numeric: 37.2, value_text: null, unit: "\u00b0C", created_at: "2026-09-25T03:30:00Z" },
+    { test_type: "Temperature", value_numeric: 36.4, value_text: null, unit: "\u00b0C", created_at: "2026-09-25T01:30:00Z" },
+    { test_type: "SpO2", value_numeric: 96, value_text: null, unit: "%", created_at: "2026-09-25T03:31:00Z" },
+    { test_type: "SpO2", value_numeric: 99, value_text: null, unit: "%", created_at: "2026-09-25T01:31:00Z" },
+  ];
+  const data = buildHealthScreeningReportData(patient, records, "2026-09-25");
+  assert.equal(data.patient.temperature, "37.2 \u00b0C");
+  assert.equal(data.patient.spo2, "96 %");
+});
+
+test("a vital keeps reporting the same reading it reported as a laboratory row", () => {
+  const records: ScreeningTestRecord[] = [
+    { test_type: "Temperature", value_numeric: 36.8, value_text: null, unit: "\u00b0C", created_at: "2026-09-25T02:01:00Z" },
+    { test_type: "SpO2", value_numeric: 98, value_text: null, unit: "%", created_at: "2026-09-25T02:02:00Z" },
+  ];
+  const data = buildHealthScreeningReportData(patient, records, "2026-09-25", ["Temperature", "SpO2"]);
+  assert.deepEqual(data.laboratoryResults, []);
+  assert.equal(data.patient.temperature, "36.8 \u00b0C");
+  assert.equal(data.patient.spo2, "98 %");
+});
+
+test("a vital recorded as text only is reported without duplicating its unit", () => {
+  const records: ScreeningTestRecord[] = [
+    { test_type: "SpO2", value_numeric: null, value_text: "SpO2 97%", unit: null, created_at: "2026-09-25T02:02:00Z" },
+    { test_type: "Temperature", value_numeric: null, value_text: "37.1 deg C", unit: null, created_at: "2026-09-25T02:03:00Z" },
+  ];
+  const data = buildHealthScreeningReportData(patient, records, "2026-09-25");
+  assert.equal(data.patient.spo2, "SpO2 97%");
+  assert.equal(data.patient.temperature, "37.1 deg C \u00b0C");
+});
+
+test("missing vitals leave the demographics fields undefined", () => {
+  const data = buildHealthScreeningReportData(patient, VITAL_DAY.filter((r) => !["Temperature", "SpO2"].includes(r.test_type)), "2026-09-25");
+  assert.equal(data.patient.temperature, undefined);
+  assert.equal(data.patient.spo2, undefined);
+});
+
+test("vitals are never rendered as laboratory rows", () => {
+  const allIds = getAvailableReportTests(VITAL_DAY).map((o) => o.id);
+  const data = buildHealthScreeningReportData(patient, VITAL_DAY, "2026-09-25", allIds);
+  const labels = data.laboratoryResults.map((r) => r.test);
+  assert.equal(labels.includes("Body Temperature"), false);
+  assert.equal(labels.includes("Oxygen Saturation (SpO\u2082)"), false);
+  assert.equal(labels.includes("Heart Rate"), false);
+  assert.equal(data.patient.temperature, "36.8 \u00b0C");
+  assert.equal(data.patient.spo2, "98 %");
+});
+
+test("vitals are not offered as selectable laboratory checkboxes", () => {
+  const ids = getAvailableReportTests(VITAL_DAY).map((o) => o.id);
+  assert.equal(ids.includes("Temperature"), false);
+  assert.equal(ids.includes("SpO2"), false);
+  assert.deepEqual(ids, ["Hemoglobin"]);
+});
+
+test("vitals stay in demographics regardless of the laboratory selection", () => {
+  const selections: Array<string[] | undefined> = [
+    undefined,
+    [],
+    ["Hemoglobin"],
+    ["Temperature", "SpO2", "Hemoglobin"],
+  ];
+  for (const includedTests of selections) {
+    const data = buildHealthScreeningReportData(patient, VITAL_DAY, "2026-09-25", includedTests);
+    assert.equal(data.patient.temperature, "36.8 \u00b0C");
+    assert.equal(data.patient.spo2, "98 %");
+    const labels = data.laboratoryResults.map((r) => r.test);
+    assert.equal(labels.includes("Body Temperature"), false);
+    assert.equal(labels.includes("Oxygen Saturation (SpO\u2082)"), false);
+  }
+});
+
+test("legacy tokens naming vitals validate without restoring laboratory rows", () => {
+  const data = buildHealthScreeningReportData(patient, VITAL_DAY, "2026-09-25", ["Temperature", "SpO2"]);
+  assert.deepEqual(normalizeIncludedTests(["Temperature", "SpO2"]), ["Temperature", "SpO2"]);
+  assert.deepEqual(data.laboratoryResults, []);
+  assert.equal(data.patient.temperature, "36.8 \u00b0C");
+  assert.equal(data.patient.spo2, "98 %");
+});
+
+test("vital values are plain readings and never carry a laboratory status tone", () => {
+  const records: ScreeningTestRecord[] = [
+    { test_type: "Temperature", value_numeric: 41.2, value_text: null, unit: "\u00b0C", created_at: "2026-09-25T02:01:00Z" },
+    { test_type: "SpO2", value_numeric: 88, value_text: null, unit: "%", created_at: "2026-09-25T02:02:00Z" },
+  ];
+  const data = buildHealthScreeningReportData(patient, records, "2026-09-25");
+  assert.equal(data.patient.temperature, "41.2 \u00b0C");
+  assert.equal(data.patient.spo2, "88 %");
+  assert.equal(typeof data.patient.temperature, "string");
+  assert.equal(typeof data.patient.spo2, "string");
+});
+
+test("existing laboratory tests and Bone Density are unaffected by the vitals move", () => {
+  const records: ScreeningTestRecord[] = [
+    ...VITAL_DAY,
+    { test_type: "Bone Density (T Score)", value_numeric: -1.2, value_text: null, unit: null, created_at: "2026-09-25T02:05:00Z" },
+    { test_type: "Heart Rate", value_numeric: 74, value_text: null, unit: "/min", created_at: "2026-09-25T02:06:00Z" },
+  ];
+  const allIds = getAvailableReportTests(records).map((o) => o.id);
+  const data = buildHealthScreeningReportData(patient, records, "2026-09-25", allIds);
+  const labels = data.laboratoryResults.map((r) => r.test);
+  assert.deepEqual(labels, ["Hemoglobin (Hb)", "Heart Rate", "Bone Density (T Score)"]);
+});
+
 const FULL_DAY: ScreeningTestRecord[] = [
   { test_type: "Hemoglobin", value_numeric: 14.2, value_text: null, unit: "g/dL", created_at: "2026-09-25T02:00:00Z" },
   { test_type: "RBG", value_numeric: 96, value_text: null, unit: "mg/dL", created_at: "2026-09-25T02:01:00Z" },

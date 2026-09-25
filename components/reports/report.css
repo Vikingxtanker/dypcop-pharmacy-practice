@@ -50,7 +50,7 @@
   --report-content-gap: 3.5mm;
 
   /* -------- Header (open, no card) -------- */
-  --report-header-height: 35mm;
+  --report-header-height: 31mm;
   --report-header-margin-x: 3.5mm;
   --report-header-margin-top: 5mm;
   --report-header-padding: 1.8mm;
@@ -358,7 +358,7 @@ body.rp-pdf-body .rp-sheet,
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: 34mm 1fr;
+  grid-template-columns: 31mm 1fr;
   height: 100%;
   align-items: center;
 }
@@ -382,59 +382,45 @@ body.rp-pdf-body .rp-sheet,
   object-fit: contain;
 }
 
-/* --- Institution name (centre) --- */
+/* --- Institution name (right of the logo) --- */
 .rp-institution {
-  padding: 0 6mm;
+  padding: 0 5mm;
   border-left: 1.4px solid var(--report-maroon);
   text-align: left;
 }
 
+/* College name + campus line: one single line, sized to fit the institution
+   column (A4 210mm sheet - logo column - paddings) without wrapping or clipping. */
 .rp-college-name {
   margin: 0;
   color: var(--report-maroon-dark);
-  font-size: 15pt;
-  line-height: 0.95;
-  font-weight: 950;
-  letter-spacing: 0.015em;
-  text-transform: uppercase;
-}
-
-.rp-akurdi {
-  margin-top: 0.6mm;
-  font-size: 10pt;
+  font-size: 12.5pt;
   line-height: 1;
-  font-weight: 800;
-  color: var(--report-maroon-dark);
+  font-weight: 950;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
 }
 
 .rp-address {
-  margin-top: 1.2mm;
+  margin-top: 1mm;
   font-size: 8pt;
-  line-height: 1.05;
+  line-height: 1.15;
   font-weight: 700;
   color: var(--report-maroon-dark);
 }
 
 .rp-separator {
-  margin: 1.2mm 0 1mm;
+  margin: 1.1mm 0 0.9mm;
   width: 82%;
   border-top: 1px solid var(--report-maroon);
 }
 
 .rp-department {
-  font-size: 8.5pt;
-  line-height: 1.05;
-  font-weight: 900;
-  text-transform: uppercase;
-  color: var(--report-maroon-dark);
-}
-
-.rp-pharmd {
-  margin-top: 0.2mm;
-  font-size: 8pt;
-  line-height: 1.05;
+  font-size: 9pt;
+  line-height: 1.1;
   font-weight: 900;
   color: var(--report-maroon-dark);
+  white-space: nowrap;
 }
 
 /* ---------------------------------------------------------

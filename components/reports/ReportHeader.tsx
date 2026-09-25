@@ -10,22 +10,18 @@ export default function ReportHeader({ assets }: { assets: ReportAssets }) {
 
         <div className="rp-institution">
           <div className="rp-college-name">
-            Dr. D. Y. Patil
-            <br />
-            College of Pharmacy
+            Dr. D. Y. Patil College of Pharmacy Akurdi, Pune - 411044.
           </div>
-          <div className="rp-akurdi">Akurdi, Pune</div>
 
           <div className="rp-address">
             D.Y. Patil Educational Complex, Sector, Pradhikaran,
             <br />
-            Nigdi, Pune, Maharashtra 412101
+            Nigdi, Pune, Maharashtra 412044.
           </div>
 
           <div className="rp-separator"></div>
 
-          <div className="rp-department">Department of Pharmacy Practice</div>
-          <div className="rp-pharmd">(Pharm.D)</div>
+          <div className="rp-department">Department of Pharmacy Practice (Pharm.D)</div>
         </div>
       </div>
     </header>

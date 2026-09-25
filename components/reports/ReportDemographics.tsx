@@ -14,6 +14,8 @@ export default function ReportDemographics({ patient }: ReportDemographicsProps)
     { label: "Gender:", value: patient.gender || undefined },
     { label: "Patient ID:", value: patient.patientId || undefined },
     { label: "BMI:", value: patient.bmi ? `${patient.bmi} kg/m\u00b2` : undefined },
+    { label: "Temperature:", value: patient.temperature || undefined },
+    { label: "SpO\u2082:", value: patient.spo2 || undefined },
     { label: "Date:", value: patient.date || undefined },
     { label: "Address:", value: patient.address || undefined, span: true },
   ];
