@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import HssNavbar from "@/components/layout/HssNavbar";
 import Footer from "@/components/layout/Footer";
 import { useAuth } from "@/lib/auth-context";
@@ -27,6 +27,15 @@ const counselingLimitToast = () =>
     title: COUNSELING_LIMIT_MESSAGE,
     customClass: { title: "fs-6 fw-normal" },
   });
+
+function AutoVerifyPatientParam({ onLoaded }: { onLoaded: (patientId: string) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const id = searchParams.get("patientId");
+    if (id) onLoaded(id.trim());
+  }, [searchParams, onLoaded]);
+  return null;
+}
 
 function useCounselingField(initialValue = "") {
   const [value, setValue] = useState(initialValue);
@@ -121,6 +130,9 @@ export default function StationPage() {
   const [testHistory, setTestHistory] = useState<TestRecord[]>([]);
   const [stationSelect, setStationSelect] = useState("");
 
+  const [pendingAutoId, setPendingAutoId] = useState<string | null>(null);
+  const autoVerifyHandledRef = useRef(false);
+
   const [testValue, setTestValue] = useState("");
   const [testValueSys, setTestValueSys] = useState("");
   const [testValueDia, setTestValueDia] = useState("");
@@ -165,15 +177,15 @@ export default function StationPage() {
     if (currentPatient) loadTestHistory();
   }, [currentPatient, loadTestHistory]);
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!patientId.trim()) return;
+  const verifyPatientId = useCallback(async (idToVerify: string) => {
+    const trimmed = idToVerify.trim();
+    if (!trimmed) return;
 
     try {
       const { data, error } = await supabase
         .from("patients")
         .select("id, name, age, gender")
-        .eq("id", patientId.trim())
+        .eq("id", trimmed)
         .single();
 
       if (error || !data) {
@@ -186,7 +198,24 @@ export default function StationPage() {
       console.error("Verification error:", err);
       Swal.fire("Error", "Something went wrong verifying the patient.", "error");
     }
+  }, []);
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await verifyPatientId(patientId);
   };
+
+  const handleAutoPatientId = useCallback((id: string) => {
+    setPendingAutoId((prev) => prev ?? id);
+  }, []);
+
+  useEffect(() => {
+    if (authorized && pendingAutoId && !autoVerifyHandledRef.current) {
+      autoVerifyHandledRef.current = true;
+      setPatientId(pendingAutoId);
+      verifyPatientId(pendingAutoId);
+    }
+  }, [authorized, pendingAutoId, verifyPatientId]);
 
   const saveTest = async (payload: Record<string, unknown>, showMsg = true): Promise<boolean> => {
     try {
@@ -473,6 +502,9 @@ export default function StationPage() {
   return (
     <>
       <HssNavbar activePage="station" />
+      <Suspense fallback={null}>
+        <AutoVerifyPatientParam onLoaded={handleAutoPatientId} />
+      </Suspense>
       <main className="flex-fill mt-5 pt-5">
         <div className="container py-5">
           <h2 className="mb-4">Health Screening Test - Station Hub</h2>
