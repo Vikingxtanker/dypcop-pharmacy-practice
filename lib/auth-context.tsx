@@ -20,12 +20,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("currentUser");
+    const stored = sessionStorage.getItem("currentUser");
     if (stored) {
       try {
         setUser(JSON.parse(stored));
       } catch {
-        localStorage.removeItem("currentUser");
+        sessionStorage.removeItem("currentUser");
       }
     }
   }, []);
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const newUser: User = { username: data.username, role: data.role };
-      localStorage.setItem("currentUser", JSON.stringify(newUser));
+      sessionStorage.setItem("currentUser", JSON.stringify(newUser));
       setUser(newUser);
       return { success: true };
     } catch {
@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem("currentUser");
+    sessionStorage.removeItem("currentUser");
     setUser(null);
   };
 

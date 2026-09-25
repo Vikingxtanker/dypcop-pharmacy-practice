@@ -73,7 +73,7 @@ export default function HealthScreeningNavbar() {
               ) : (
                 <li className="nav-item">
                   <button className="btn btn-primary btn-sm" onClick={() => {
-                    const userStr = localStorage.getItem("currentUser");
+                    const userStr = sessionStorage.getItem("currentUser");
                     if (userStr) return; // already handled by context
                     Swal.fire({
                       title: "Login",
