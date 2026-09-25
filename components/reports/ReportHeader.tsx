@@ -27,14 +27,6 @@ export default function ReportHeader({ assets }: { assets: ReportAssets }) {
           <div className="rp-department">Department of Pharmacy Practice</div>
           <div className="rp-pharmd">(Pharm.D)</div>
         </div>
-
-        <div className="rp-slogan">
-          Better Health
-          <br />
-          for a Brighter
-          <br />
-          Tomorrow
-        </div>
       </div>
     </header>
   );

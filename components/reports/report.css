@@ -49,18 +49,13 @@
   --report-section-gap: 4mm;
   --report-content-gap: 3.5mm;
 
-  /* -------- Header card (compact) -------- */
-  --report-header-height: 36mm;
+  /* -------- Header (open, no card) -------- */
+  --report-header-height: 35mm;
   --report-header-margin-x: 3.5mm;
   --report-header-margin-top: 5mm;
   --report-header-padding: 1.8mm;
-  --report-header-radius: 8mm;
-  --report-header-border-width: 2px;
   --report-logo-size: 26mm;
-  --report-logo-panel-radius: 3.5mm;
-  --report-logo-panel-border: 1.4px;
-  --report-header-wave-h: 13mm;
-  --report-header-wave-d: 4mm;
+  --report-logo-inset: 1.5mm;
 
   /* -------- Title bar (compact) -------- */
   --report-title-height: 11mm;
@@ -347,57 +342,37 @@ body.rp-pdf-body .rp-sheet,
 }
 
 /* ---------------------------------------------------------
-   SECTION 1 — HEADER CARD
+   SECTION 1 — HEADER (open layout: no card, no logo panel,
+   no slogan, no wave)
    --------------------------------------------------------- */
 .rp-header {
   position: relative;
   margin: var(--report-header-margin-top) var(--report-header-margin-x) 0;
   height: var(--report-header-height);
-  border: var(--report-header-border-width) solid var(--report-maroon);
-  border-radius: var(--report-header-radius);
   padding: var(--report-header-padding);
   overflow: hidden;
-  background:
-    radial-gradient(circle at 91% 21%, rgba(255, 255, 255, 0.85) 0 9%, transparent 9.5%),
-    radial-gradient(circle at 94% 34%, rgba(255, 255, 255, 0.6) 0 10%, transparent 10.5%),
-    linear-gradient(180deg, var(--report-background) 0%, #fffaf7 100%);
   break-inside: avoid;
-}
-
-.rp-header::after {
-  content: "";
-  position: absolute;
-  left: -3%;
-  right: -2%;
-  bottom: calc(-1 * var(--report-header-wave-d));
-  height: var(--report-header-wave-h);
-  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-  background: linear-gradient(180deg, transparent 0 16%, rgba(116, 16, 25, 0.06) 16% 21%, transparent 21% 100%);
-  border-top: 4px solid rgba(116, 16, 25, 0.12);
-  pointer-events: none;
 }
 
 .rp-header-grid {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: 34mm 1fr 33mm;
+  grid-template-columns: 34mm 1fr;
   height: 100%;
   align-items: center;
 }
 
-/* --- Logo panel (left, compact) --- */
+/* --- Logo (left, sits directly on the report background) --- */
 .rp-logo-panel {
   width: var(--report-logo-size);
   height: var(--report-logo-size);
   justify-self: center;
-  border-radius: var(--report-logo-panel-radius);
-  background: linear-gradient(180deg, var(--report-background) 0%, #fffaf7 100%);
-  border: var(--report-logo-panel-border) solid var(--report-maroon);
-  outline: 1px solid rgba(116, 16, 25, 0.2);
   display: grid;
   place-items: center;
-  padding: 1.5mm;
+  /* Transparent box that only reserves the logo's footprint: the inset keeps
+     the artwork at its original rendered size now that the panel frame is gone. */
+  padding: var(--report-logo-inset);
 }
 
 .rp-logo {
@@ -460,36 +435,6 @@ body.rp-pdf-body .rp-sheet,
   line-height: 1.05;
   font-weight: 900;
   color: var(--report-maroon-dark);
-}
-
-/* --- Slogan (right, compact) --- */
-.rp-slogan {
-  position: relative;
-  height: var(--report-logo-size);
-  padding: 1.5mm 1.5mm 1.5mm 2.5mm;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--report-maroon);
-  font-family: Georgia, "Times New Roman", serif;
-  font-style: italic;
-  font-weight: 800;
-  font-size: 11pt;
-  line-height: 1.05;
-  transform: rotate(-3deg);
-}
-
-.rp-slogan::after {
-  content: "";
-  position: absolute;
-  bottom: 1.8mm;
-  left: 20%;
-  width: 60%;
-  height: 2.2mm;
-  border-bottom: 1.2px solid var(--report-maroon);
-  border-radius: 50%;
-  transform: rotate(-3deg);
 }
 
 /* ---------------------------------------------------------
