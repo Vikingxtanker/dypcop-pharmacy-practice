@@ -60,11 +60,11 @@ export default function DashboardPage() {
   const [sortAsc, setSortAsc] = useState(true);
 
   useEffect(() => {
-    if (!user || user.role !== "admin") {
+    if (!user || (user.role !== "admin" && user.role !== "registration")) {
       Swal.fire({
         icon: "error",
         title: "Access Denied",
-        text: "You must be logged in as admin to access this page.",
+        text: "You must be logged in as admin or registration to access this page.",
       }).then(() => router.push("/health-screening"));
     }
   }, [user, router]);
@@ -150,7 +150,7 @@ export default function DashboardPage() {
   }, [dateFilter, testFilter]);
 
   useEffect(() => {
-    if (user?.role === "admin") loadPatients();
+    if (user?.role === "admin" || user?.role === "registration") loadPatients();
   }, [user, loadPatients]);
 
   const handleSort = (colIndex: number) => {
@@ -281,7 +281,7 @@ export default function DashboardPage() {
     );
   };
 
-  if (!user || user.role !== "admin") return null;
+  if (!user || (user.role !== "admin" && user.role !== "registration")) return null;
 
   return (
     <>
