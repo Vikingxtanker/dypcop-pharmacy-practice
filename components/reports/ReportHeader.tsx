@@ -22,7 +22,7 @@ export default function ReportHeader({
           <div className="rp-address">
             D.Y. Patil Educational Complex, Sector, Pradhikaran,
             <br />
-            Nigdi, Pune, Maharashtra 412044.
+            Nigdi, Pune, Maharashtra 411044.
           </div>
 
           <div className="rp-separator"></div>
@@ -31,11 +31,12 @@ export default function ReportHeader({
         </div>
 
         {/* Same signed report URL as before, just moved from the footer to the
-            header. No label: the code itself is the indicator, and the alt text
-            carries the meaning for assistive technology. */}
+            header. The caption under the code spells out what scanning does;
+            the alt text carries the same meaning for assistive technology. */}
         {qrSrc && (
           <div className="rp-header-qr">
             <img src={qrSrc} alt="QR code to view this report online" />
+            <div className="rp-header-qr-caption">Scan to view report online</div>
           </div>
         )}
       </div>

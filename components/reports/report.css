@@ -132,9 +132,9 @@
   --report-wave-front: #fbefed;
 
   /* -------- QR (header, top-right) --------
-     22mm is larger than the 18mm the code used to print at in the footer, so
-     scannability improves rather than regresses. */
-  --report-qr-size: 22mm;
+     20mm still beats the 18mm the code used to print at in the footer, so
+     scannability is unchanged, and it leaves room for the caption below. */
+  --report-qr-size: 20mm;
   --report-qr-frame: 1mm;
   --report-qr-radius: 1.5mm;
 
@@ -451,11 +451,10 @@ body.rp-pdf-body .rp-sheet,
 }
 
 /* --- QR (top-right of the header) ---
-   Moved here from the footer. Sized to fit the existing 31mm header without
-   growing it: 22mm code + 1mm frame each side = 24mm inside a 27.4mm content
-   box. The frame keeps the code's own white quiet zone visible against the
-   paper. There is deliberately no caption - the code is the indicator, and the
-   img alt text carries the meaning for assistive technology. */
+   Moved here from the footer. Sized with its caption to fit the existing 31mm
+   header without growing it: 20mm code + 1mm frame each side + the caption fits
+   inside a 27.4mm content box. The frame keeps the code's own white quiet zone
+   visible against the paper. */
 .rp-header-qr {
   justify-self: end;
   align-self: center;
@@ -464,7 +463,6 @@ body.rp-pdf-body .rp-sheet,
   background: var(--report-white);
   border: 1px solid var(--report-table-border);
   border-radius: var(--report-qr-radius);
-  line-height: 0;
   break-inside: avoid;
 }
 
@@ -472,6 +470,17 @@ body.rp-pdf-body .rp-sheet,
   display: block;
   width: 100%;
   height: auto;
+  line-height: 0;
+}
+
+.rp-header-qr-caption {
+  margin-top: 0.5mm;
+  font-size: 5pt;
+  line-height: 1.1;
+  font-weight: 700;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--report-maroon-dark);
 }
 
 /* ---------------------------------------------------------
