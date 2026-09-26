@@ -630,8 +630,8 @@ const contrastRatio = (a: string, b: string): number => {
 
 test("every clinical tone meets WCAG AA on the printed table background", () => {
   const css = reportCss();
-  // The result value is 10.5pt bold and the interpretation 8.5pt, so neither
-  // reaches the 14pt-bold "large text" exemption: 4.5:1 is required.
+  // The result value prints at 10.5pt bold, which does not reach the 14pt-bold
+  // "large text" exemption, so 4.5:1 is required.
   const tableBackground = cssToken(css, "report-white");
   const toneTokens: Array<[ClinicalTone, string]> = [
     ["normal", "report-status-normal"],

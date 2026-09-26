@@ -62,7 +62,6 @@ export default function ReportLaboratoryResults({ results, watermarkSrc }: Repor
                   aria-label={resultAriaLabel(row)}
                 >
                   {row.result || "\u2014"}
-                  {row.interpretation ? <span className="rp-result-note">{row.interpretation}</span> : null}
                 </td>
                 <td className="rp-range">{row.normalRange || <span className="rp-dash">{"\u2014"}</span>}</td>
               </tr>

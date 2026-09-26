@@ -738,9 +738,9 @@ body.rp-pdf-body .rp-sheet,
  * Clinical tones. The four existing --report-status-* tokens are reused as-is so
  * the visual language of the report does not change; only the class names now
  * say what the tone means (mild-moderate vs abnormal) instead of "low"/"high",
- * which described direction rather than severity. Colour is never the only
- * signal: the tone class always travels with a visible .rp-result-note and a
- * full sentence in the cell's aria-label.
+ * which described direction rather than severity. The cell now prints the value
+ * alone, so the tone is carried by colour plus the printed reference interval
+ * beside it, and the full sentence stays in the cell's aria-label.
  */
 .rp-result--normal {
   color: var(--report-status-normal);
@@ -760,23 +760,6 @@ body.rp-pdf-body .rp-sheet,
 .rp-result--neutral {
   color: var(--report-status-neutral);
   font-weight: 850;
-}
-
-/* Short plain-text interpretation printed under the value: keeps the report
-   readable in grayscale and by assistive technology, and never changes the
-   table's column widths. */
-.rp-lab-table td.rp-result .rp-result-note {
-  display: block;
-  margin-top: 0.5mm;
-  font-size: var(--report-font-footnote);
-  font-weight: 700;
-  line-height: 1.15;
-  white-space: normal;
-}
-
-.rp-lab-table td.rp-result--neutral .rp-result-note {
-  font-weight: 600;
-  opacity: 0.9;
 }
 
 .rp-lab-table td.rp-range {
