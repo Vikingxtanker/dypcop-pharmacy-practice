@@ -15,7 +15,7 @@ interface PatientHealthScreeningReportProps {
 export function PatientHealthScreeningReport({ data, assets }: PatientHealthScreeningReportProps) {
   return (
     <article className="rp-sheet">
-      <ReportHeader assets={assets} />
+      <ReportHeader assets={assets} qrSrc={assets.qrSrc} />
 
       <div className="rp-title-strip">
         <HeartPulse className="rp-title-icon" aria-hidden="true" />
@@ -57,7 +57,7 @@ export function PatientHealthScreeningReport({ data, assets }: PatientHealthScre
         </section>
       </div>
 
-      <ReportFooter qrSrc={assets.qrSrc} />
+      <ReportFooter />
     </article>
   );
 }

@@ -71,7 +71,10 @@ test("picks latest record per test type", () => {
   const data = buildHealthScreeningReportData(patient, records, "2026-09-25");
   const row = data.laboratoryResults.find((r) => r.test.includes("HbA1c"));
   assert.equal(row?.result, "6.2 %");
-  assert.equal(row?.status, "normal");
+  // 6.2% is in the ADA prediabetes range, so it is amber rather than normal.
+  assert.equal(row?.tone, "mild-moderate");
+  assert.equal(row?.status, "low");
+  assert.equal(row?.interpretation, "Prediabetes range");
 });
 
 test("combines Systolic + Diastolic pairing into one Blood Pressure row", () => {
@@ -83,7 +86,9 @@ test("combines Systolic + Diastolic pairing into one Blood Pressure row", () => 
   const data = buildHealthScreeningReportData(patient, records, "2026-09-25");
   const bp = data.laboratoryResults.find((r) => r.test === "Blood Pressure");
   assert.equal(bp?.result, "138/86 mmHg");
-  assert.equal(bp?.status, "info");
+  // 138/86 is the 2017 ACC/AHA stage 1 category.
+  assert.equal(bp?.status, "low");
+  assert.equal(bp?.interpretation, "Stage 1 hypertension range");
 });
 
 test("Blood Pressure falls back to the text row when no pairing exists", () => {
@@ -340,37 +345,57 @@ test("missing counseling yields empty points", () => {
   assert.deepEqual(data.counselingPoints, []);
 });
 
-test("inferTestStatus boundaries", () => {
-  assert.equal(inferTestStatus("FBS", 125), "normal");
+test("inferTestStatus boundaries delegate to the centralized classifier", () => {
+  // Amber = a published intermediate category (see clinical-classification.test.ts
+  // for the full boundary matrix); red = outside the interval or a severe category.
+  assert.equal(inferTestStatus("FBS", 100), "low");
+  assert.equal(inferTestStatus("FBS", 125), "low");
   assert.equal(inferTestStatus("FBS", 126), "high");
-  assert.equal(inferTestStatus("FBS", 70), "low");
-  assert.equal(inferTestStatus("RBG", 199), "normal");
-  assert.equal(inferTestStatus("RBG", 200), "high");
-  assert.equal(inferTestStatus("PPBS", 180), "high");
+  assert.equal(inferTestStatus("FBS", 70), "normal");
+  assert.equal(inferTestStatus("FBS", 69.9), "high");
+  assert.equal(inferTestStatus("RBG", 199), "low");
+  assert.equal(inferTestStatus("RBG", 200), "low");
+  assert.equal(inferTestStatus("PPBS", 180), "low");
+  assert.equal(inferTestStatus("PPBS", 200), "high");
+  assert.equal(inferTestStatus("OGTT", 199), "low");
+  assert.equal(inferTestStatus("OGTT", 200), "high");
   assert.equal(inferTestStatus("HbA1c", 6.5), "high");
-  assert.equal(inferTestStatus("HbA1c", 6.4), "normal");
-  assert.equal(inferTestStatus("SpO2", 94), "normal");
-  assert.equal(inferTestStatus("SpO2", 93), "low");
+  assert.equal(inferTestStatus("HbA1c", 6.4), "low");
+  assert.equal(inferTestStatus("HbA1c", 35), "info");
   assert.equal(inferTestStatus("Heart Rate", 101), "high");
-  assert.equal(inferTestStatus("Heart Rate", 55), "low");
-  assert.equal(inferTestStatus("Hemoglobin", 18), "high");
-  assert.equal(inferTestStatus("Hemoglobin", 10.9), "low");
+  assert.equal(inferTestStatus("Heart Rate", 55), "high");
+  assert.equal(inferTestStatus("Heart Rate", 60), "normal");
+  assert.equal(inferTestStatus("Heart Rate", 100), "normal");
+  // Sex-dependent hemoglobin bands are not applied when the caller has no patient.
+  assert.equal(inferTestStatus("Hemoglobin", 10.9), "high");
+  assert.equal(inferTestStatus("Hemoglobin", 18), "info");
+  assert.equal(inferTestStatus("Hemoglobin", 14, { sex: "male" }), "normal");
+  // Vital signs are no longer classified laboratory results.
+  assert.equal(inferTestStatus("SpO2", 94), "info");
+  assert.equal(inferTestStatus("SpO2", 93), "info");
+  assert.equal(inferTestStatus("Temperature", 41.2), "info");
+  assert.equal(inferTestStatus("FEV", 3.1), "info");
+  assert.equal(inferTestStatus("Target Weight", 72), "info");
   assert.equal(inferTestStatus("Uric Acid", 5.8), "info");
   assert.equal(inferTestStatus("FBS", ""), "info");
   assert.equal(inferTestStatus("FBS", null), "info");
 });
 
-test("inferBpStatus boundaries", () => {
+test("inferBpStatus boundaries delegate to the centralized classifier", () => {
   assert.equal(inferBpStatus("118/70"), "normal");
   assert.equal(inferBpStatus("119/79"), "normal");
-  assert.equal(inferBpStatus("120/70"), "info");
-  assert.equal(inferBpStatus("138/86"), "info");
-  assert.equal(inferBpStatus("139/89"), "info");
+  assert.equal(inferBpStatus("120/70"), "low");
+  assert.equal(inferBpStatus("138/86"), "low");
+  assert.equal(inferBpStatus("139/89"), "low");
+  assert.equal(inferBpStatus("110/80"), "low");
   assert.equal(inferBpStatus("140/90"), "high");
   assert.equal(inferBpStatus("159/99"), "high");
-  assert.equal(inferBpStatus("110/80"), "info");
-  assert.equal(inferBpStatus("90/60"), "low");
+  // The lower reference limit is inclusive, so exactly 90/60 is still in range.
+  assert.equal(inferBpStatus("90/60"), "normal");
+  assert.equal(inferBpStatus("89/60"), "high");
+  assert.equal(inferBpStatus("90/59"), "high");
   assert.equal(inferBpStatus("garbage"), "info");
+  assert.equal(inferBpStatus("120/"), "info");
 });
 
 test("sqrt demo data covers >=15 lab rows and long counseling", () => {
@@ -383,56 +408,60 @@ test("sqrt demo data covers >=15 lab rows and long counseling", () => {
 
 test("status-to-visual tone mapping is centralized on the existing status model", () => {
   assert.equal(resultStatusTone("normal"), "normal");
-  assert.equal(resultStatusTone("low"), "low");
-  assert.equal(resultStatusTone("high"), "high");
+  assert.equal(resultStatusTone("low"), "mild-moderate");
+  assert.equal(resultStatusTone("high"), "abnormal");
   assert.equal(resultStatusTone("info"), "neutral");
   assert.equal(resultStatusTone(undefined), "neutral");
 
   assert.equal(resultStatusClass("normal"), "rp-result--normal");
-  assert.equal(resultStatusClass("low"), "rp-result--low");
-  assert.equal(resultStatusClass("high"), "rp-result--high");
+  assert.equal(resultStatusClass("low"), "rp-result--mild-moderate");
+  assert.equal(resultStatusClass("high"), "rp-result--abnormal");
   assert.equal(resultStatusClass("info"), "rp-result--neutral");
   assert.equal(resultStatusClass(undefined), "rp-result--neutral");
 });
 
 test("status phrases are plain-text and readable for assistive tech", () => {
-  assert.equal(resultStatusLabel("normal"), "within normal range");
-  assert.equal(resultStatusLabel("low"), "below normal range");
-  assert.equal(resultStatusLabel("high"), "above normal range");
-  assert.equal(resultStatusLabel("info"), "unclassified status");
-  assert.equal(resultStatusLabel(undefined), "unclassified status");
+  assert.equal(resultStatusLabel("normal"), "within the reference interval");
+  assert.equal(resultStatusLabel("low"), "in an intermediate clinical range");
+  assert.equal(resultStatusLabel("high"), "abnormal");
+  assert.equal(resultStatusLabel("info"), "not classified");
+  assert.equal(resultStatusLabel(undefined), "not classified");
 });
 
-test("boundary values map to the correct visual tone via EXISTING inference", () => {
-  // Normal (green): upper/lower boundaries of a range remain normal.
+test("boundary values map to the correct clinical tone via the centralized classifier", () => {
+  // GREEN: the boundaries of a reference interval stay normal.
   assert.equal(resultStatusClass(inferTestStatus("Heart Rate", 60)), "rp-result--normal");
   assert.equal(resultStatusClass(inferTestStatus("Heart Rate", 100)), "rp-result--normal");
   assert.equal(resultStatusClass(inferTestStatus("RBG", 110)), "rp-result--normal");
-  assert.equal(resultStatusClass(inferTestStatus("SpO2", 94)), "rp-result--normal");
   assert.equal(resultStatusClass(inferBpStatus("119/79")), "rp-result--normal");
 
-  // Below normal (yellow) for anything the model flags as low.
-  assert.equal(resultStatusClass(inferTestStatus("Heart Rate", 55)), "rp-result--low");
-  assert.equal(resultStatusClass(inferTestStatus("Hemoglobin", 10.9)), "rp-result--low");
-  assert.equal(resultStatusClass(inferTestStatus("SpO2", 93)), "rp-result--low");
-  assert.equal(resultStatusClass(inferBpStatus("90/60")), "rp-result--low");
+  // AMBER: only published intermediate categories.
+  assert.equal(resultStatusClass(inferTestStatus("FBS", 110)), "rp-result--mild-moderate");
+  assert.equal(resultStatusClass(inferTestStatus("HbA1c", 6.0)), "rp-result--mild-moderate");
+  assert.equal(resultStatusClass(inferTestStatus("PPBS", 180)), "rp-result--mild-moderate");
+  assert.equal(resultStatusClass(inferTestStatus("Hemoglobin", 11.5, { sex: "female" })), "rp-result--mild-moderate");
+  assert.equal(resultStatusClass(inferBpStatus("138/86")), "rp-result--mild-moderate");
+  assert.equal(resultStatusClass(inferBpStatus("120/70")), "rp-result--mild-moderate");
 
-  // Above normal (red) for anything the model flags as high.
-  assert.equal(resultStatusClass(inferTestStatus("RBG", 200)), "rp-result--high");
-  assert.equal(resultStatusClass(inferTestStatus("HbA1c", 6.5)), "rp-result--high");
-  assert.equal(resultStatusClass(inferBpStatus("140/90")), "rp-result--high");
+  // RED: outside the interval with no intermediate category, or a severe category.
+  assert.equal(resultStatusClass(inferTestStatus("Heart Rate", 55)), "rp-result--abnormal");
+  assert.equal(resultStatusClass(inferTestStatus("Hemoglobin", 10.9)), "rp-result--abnormal");
+  assert.equal(resultStatusClass(inferBpStatus("89/60")), "rp-result--abnormal");
+  assert.equal(resultStatusClass(inferTestStatus("HbA1c", 6.5)), "rp-result--abnormal");
+  assert.equal(resultStatusClass(inferTestStatus("FBS", 200)), "rp-result--abnormal");
+  assert.equal(resultStatusClass(inferBpStatus("140/90")), "rp-result--abnormal");
 
-  // Unclassified (neutral) stays neutral — never falsely green.
+  // NEUTRAL: never falsely green.
   assert.equal(resultStatusClass(inferTestStatus("Uric Acid", 5.8)), "rp-result--neutral");
+  assert.equal(resultStatusClass(inferTestStatus("FEV", 3.1)), "rp-result--neutral");
   assert.equal(resultStatusClass(inferTestStatus("FBS", "")), "rp-result--neutral");
   assert.equal(resultStatusClass(inferBpStatus("garbage")), "rp-result--neutral");
 });
 
-test("kum413-style example values yield the expected visual tones", () => {
-  // Mirrors the sample outcomes: only statuses produced by EXISTING inference are asserted.
-  assert.equal(resultStatusClass(inferTestStatus("Hemoglobin", 10.4)), "rp-result--low");
+test("kum413-style example values yield the expected clinical tones", () => {
+  const male = { sex: "male" as const };
+  assert.equal(resultStatusClass(inferTestStatus("Hemoglobin", 10.4, male)), "rp-result--abnormal");
   assert.equal(resultStatusClass(inferTestStatus("RBG", 110)), "rp-result--normal");
   assert.equal(resultStatusClass(inferTestStatus("Heart Rate", 89)), "rp-result--normal");
-  assert.equal(resultStatusClass(inferTestStatus("SpO2", 99)), "rp-result--normal");
   assert.equal(resultStatusClass(inferBpStatus("100/69")), "rp-result--normal");
 });

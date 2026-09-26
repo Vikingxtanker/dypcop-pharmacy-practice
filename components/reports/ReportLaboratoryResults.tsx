@@ -1,6 +1,6 @@
 import {
+  clinicalToneClass,
   resultStatusClass,
-  resultStatusLabel,
   type LaboratoryResultRow,
 } from "@/lib/reports/patient-report-data";
 
@@ -9,10 +9,25 @@ interface ReportLaboratoryResultsProps {
   watermarkSrc: string;
 }
 
-const resultAriaLabel = (row: LaboratoryResultRow): string =>
-  row.interpretation
-    ? `${row.test} result ${row.result || "not recorded"}, ${row.interpretation}`
-    : `${row.test} result ${row.result || "not recorded"}, ${resultStatusLabel(row.status)}`;
+/**
+ * Rows built by the report builders always carry a clinical tone. A row handed
+ * in from elsewhere may only have the legacy status, so that is used as a
+ * fallback rather than dropping the row to the neutral colour.
+ */
+const toneClassFor = (row: LaboratoryResultRow): string =>
+  row.tone ? clinicalToneClass(row.tone) : resultStatusClass(row.status);
+
+/**
+ * Screen-reader text for a result cell: the value, then the full clinical
+ * sentence from the centralized classifier, so the meaning of the colour is
+ * always available without seeing it.
+ */
+const resultAriaLabel = (row: LaboratoryResultRow): string => {
+  const value = row.result || "not recorded";
+  if (row.basis) return `${row.test} result ${value}. ${row.basis}`;
+  if (row.interpretation) return `${row.test} result ${value}, ${row.interpretation}`;
+  return `${row.test} result ${value}`;
+};
 
 export default function ReportLaboratoryResults({ results, watermarkSrc }: ReportLaboratoryResultsProps) {
   return (
@@ -28,7 +43,7 @@ export default function ReportLaboratoryResults({ results, watermarkSrc }: Repor
           <tr>
             <th>Test</th>
             <th className="rp-th-center">Result</th>
-            <th>Normal Range</th>
+            <th>Reference / Interpretation</th>
           </tr>
         </thead>
         <tbody>
@@ -43,10 +58,11 @@ export default function ReportLaboratoryResults({ results, watermarkSrc }: Repor
               <tr key={row.test}>
                 <td>{row.test}</td>
                 <td
-                  className={`rp-result ${resultStatusClass(row.status)}`}
+                  className={`rp-result ${toneClassFor(row)}`}
                   aria-label={resultAriaLabel(row)}
                 >
                   {row.result || "\u2014"}
+                  {row.interpretation ? <span className="rp-result-note">{row.interpretation}</span> : null}
                 </td>
                 <td className="rp-range">{row.normalRange || <span className="rp-dash">{"\u2014"}</span>}</td>
               </tr>

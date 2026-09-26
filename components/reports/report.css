@@ -56,6 +56,10 @@
   --report-header-padding: 1.8mm;
   --report-logo-size: 26mm;
   --report-logo-inset: 1.5mm;
+  /* Grid columns: the logo column keeps the 26mm panel plus its 2.5mm inset each
+     side, and the institution column is what remains after the QR column. */
+  --report-logo-col: 31mm;
+  --report-institution-pad-x: 4mm;
 
   /* -------- Title bar (compact) -------- */
   --report-title-height: 11mm;
@@ -84,11 +88,24 @@
   /* -------- Laboratory table -------- */
   --report-table-border: #dac7c8;
   --report-table-wrap-border: #8f7a7b;
-  --report-table-cell-pad-y: 2.2mm;
+  /* 1.9mm (was 2.2mm): the laboratory table now carries a second line of
+     text per result (the visible interpretation), and the densest real
+     reports must still print on a single A4 page. */
+  --report-table-cell-pad-y: 1.9mm;
   --report-range-text: #334a61;
-  /* Clinical result status colors (applied to the RESULT value only) */
+  /* Clinical result status colors (applied to the RESULT value only).
+     Contrast measured against the table cell background --report-white
+     (#fffdfb) with the normal WCAG 2.x relative-luminance formula, since
+     color is the only cue carrying the value and the 10.5pt result / 8.5pt
+     interpretation are both below the 14pt-bold "large text" exemption:
+       normal  #16803c  4.94:1  AA
+       low     #9c6600  4.84:1  AA  (was #b77900 = 3.60:1, failed AA.
+               Darkened within the same hue/saturation so the report keeps
+               its existing ochre visual language while printing legibly)
+       high    #c62828  5.54:1  AA
+       neutral #244664  9.69:1  AAA */
   --report-status-normal: #16803c;
-  --report-status-low: #b77900;
+  --report-status-low: #9c6600;
   --report-status-high: #c62828;
   --report-status-neutral: #244664;
   --report-watermark-opacity: 0.055;
@@ -99,20 +116,27 @@
   --report-counseling-pad: 3mm 4.5mm;
 
   /* -------- Footer (compact) -------- */
-  --report-footer-height: 25mm;
-  --report-footer-gap-top: 6mm;
-  --report-footer-wave-back-h: 18mm;
-  --report-footer-wave-back-d: 8mm;
-  --report-footer-wave-mid-h: 13mm;
-  --report-footer-wave-mid-d: 4mm;
-  --report-footer-wave-front-h: 12mm;
-  --report-footer-wave-front-d: 6mm;
+  /* The band shrank from 25mm to 23mm once the 18mm QR panel left for the
+     header. It still has to hold three lines of copy plus the two-line standing
+     safety note, so the waves are scaled by the same 23/25 factor to keep their
+     proportions against the page edge. */
+  --report-footer-height: 23mm;
+  --report-footer-gap-top: 5mm;
+  --report-footer-wave-back-h: 16.5mm;
+  --report-footer-wave-back-d: 7.4mm;
+  --report-footer-wave-mid-h: 12mm;
+  --report-footer-wave-mid-d: 3.7mm;
+  --report-footer-wave-front-h: 11mm;
+  --report-footer-wave-front-d: 5.5mm;
   --report-wave-mid: #d8a4a7;
   --report-wave-front: #fbefed;
 
-  /* -------- QR panel (compact) -------- */
-  --report-qr-size: 18mm;
-  --report-qr-radius: 2mm;
+  /* -------- QR (header, top-right) --------
+     22mm is larger than the 18mm the code used to print at in the footer, so
+     scannability improves rather than regresses. */
+  --report-qr-size: 22mm;
+  --report-qr-frame: 1mm;
+  --report-qr-radius: 1.5mm;
 
   /* -------- Browser preview chrome (never in the PDF) -------- */
   --report-viewer-dark: #171717;
@@ -358,7 +382,10 @@ body.rp-pdf-body .rp-sheet,
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: 31mm 1fr;
+  /* logo | institution | QR. The QR column is the exact width of the framed
+     code, so the institution column absorbs whatever is left. */
+  grid-template-columns: var(--report-logo-col) 1fr auto;
+  column-gap: 0;
   height: 100%;
   align-items: center;
 }
@@ -382,9 +409,9 @@ body.rp-pdf-body .rp-sheet,
   object-fit: contain;
 }
 
-/* --- Institution name (right of the logo) --- */
+/* --- Institution name (right of the logo, left of the QR) --- */
 .rp-institution {
-  padding: 0 5mm;
+  padding: 0 var(--report-institution-pad-x);
   border-left: 1.4px solid var(--report-maroon);
   text-align: left;
 }
@@ -421,6 +448,30 @@ body.rp-pdf-body .rp-sheet,
   font-weight: 900;
   color: var(--report-maroon-dark);
   white-space: nowrap;
+}
+
+/* --- QR (top-right of the header) ---
+   Moved here from the footer. Sized to fit the existing 31mm header without
+   growing it: 22mm code + 1mm frame each side = 24mm inside a 27.4mm content
+   box. The frame keeps the code's own white quiet zone visible against the
+   paper. There is deliberately no caption - the code is the indicator, and the
+   img alt text carries the meaning for assistive technology. */
+.rp-header-qr {
+  justify-self: end;
+  align-self: center;
+  width: var(--report-qr-size);
+  padding: var(--report-qr-frame);
+  background: var(--report-white);
+  border: 1px solid var(--report-table-border);
+  border-radius: var(--report-qr-radius);
+  line-height: 0;
+  break-inside: avoid;
+}
+
+.rp-header-qr img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 /* ---------------------------------------------------------
@@ -674,24 +725,49 @@ body.rp-pdf-body .rp-sheet,
   font-weight: 900;
 }
 
+/*
+ * Clinical tones. The four existing --report-status-* tokens are reused as-is so
+ * the visual language of the report does not change; only the class names now
+ * say what the tone means (mild-moderate vs abnormal) instead of "low"/"high",
+ * which described direction rather than severity. Colour is never the only
+ * signal: the tone class always travels with a visible .rp-result-note and a
+ * full sentence in the cell's aria-label.
+ */
 .rp-result--normal {
   color: var(--report-status-normal);
   font-weight: 900;
 }
 
-.rp-result--high {
-  color: var(--report-status-high);
+.rp-result--mild-moderate {
+  color: var(--report-status-low);
   font-weight: 900;
 }
 
-.rp-result--low {
-  color: var(--report-status-low);
+.rp-result--abnormal {
+  color: var(--report-status-high);
   font-weight: 900;
 }
 
 .rp-result--neutral {
   color: var(--report-status-neutral);
   font-weight: 850;
+}
+
+/* Short plain-text interpretation printed under the value: keeps the report
+   readable in grayscale and by assistive technology, and never changes the
+   table's column widths. */
+.rp-lab-table td.rp-result .rp-result-note {
+  display: block;
+  margin-top: 0.5mm;
+  font-size: var(--report-font-footnote);
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: normal;
+}
+
+.rp-lab-table td.rp-result--neutral .rp-result-note {
+  font-weight: 600;
+  opacity: 0.9;
 }
 
 .rp-lab-table td.rp-range {
@@ -703,6 +779,29 @@ body.rp-pdf-body .rp-sheet,
   text-align: center;
   color: var(--report-muted);
   font-style: italic;
+}
+
+/* Standing clinical-safety note for the laboratory result colours.
+   Rendered in the footer band (see ReportFooter.tsx) rather than under the
+   table. The footer is a fixed-height, overflow-hidden box, so the note costs
+   no page height: as a table sibling it pushed the densest real screening day
+   onto a second A4 page. It is absolutely positioned into the band's measured
+   slack so it cannot reflow the sheet. Now that the QR has moved to the header
+   it spans the full width, which is what lets it print on one line. */
+.rp-footer-note {
+  position: absolute;
+  left: 8mm;
+  right: 8mm;
+  bottom: 1.8mm;
+  margin: 0;
+  color: var(--report-maroon-dark);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: var(--report-font-footnote);
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  z-index: 4;
 }
 
 /* ---------------------------------------------------------
@@ -787,7 +886,7 @@ body.rp-pdf-body .rp-sheet,
 .rp-footer-copy {
   position: relative;
   z-index: 3;
-  padding-top: 2mm;
+  padding-top: 1.4mm;
   color: var(--report-maroon);
   font-family: Georgia, "Times New Roman", serif;
   font-style: italic;
@@ -800,43 +899,27 @@ body.rp-pdf-body .rp-sheet,
 }
 
 .rp-footer-college {
-  margin-top: 1.2mm;
+  margin-top: 0.7mm;
   font-size: var(--report-font-caption);
   line-height: 1.05;
 }
 
-/* ---------------------------------------------------------
-   SECTION 7 — QR PANEL
-   --------------------------------------------------------- */
-.rp-qr-panel {
-  position: absolute;
-  right: 6mm;
-  bottom: 2mm;
-  z-index: 5;
-  width: max-content;
-  min-width: var(--report-qr-size);
-  padding: 1.5mm 2.5mm;
-  border-radius: var(--report-qr-radius);
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(116, 16, 25, 0.45);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-}
-
-.rp-qr-panel img {
+/* Website, directly below the college name. It is a real anchor so the printed
+   PDF carries a working link, but it is styled as part of the footer rather
+   than as browser-default blue, and it stays selectable text (not an image).
+   The underline is what marks it as a link without any extra words. */
+.rp-footer-website {
   display: block;
-  width: var(--report-qr-size);
-  height: auto;
-  margin: 0 auto;
-}
-
-.rp-qr-label {
-  margin-top: 0.8mm;
+  margin-top: 0.5mm;
   color: var(--report-maroon-dark);
-  text-align: center;
-  white-space: nowrap;
-  font-size: var(--report-font-footnote);
+  font-size: var(--report-font-caption);
   line-height: 1.05;
-  font-weight: 850;
+  font-weight: 700;
+  font-style: normal;
+  text-decoration: underline;
+  text-underline-offset: 0.6mm;
+  text-decoration-thickness: 0.4px;
+  letter-spacing: 0.01em;
 }
 
 /* ---------------------------------------------------------
@@ -932,7 +1015,7 @@ body.rp-pdf-body .rp-sheet,
   .rp-demo-box,
   .rp-section-heading,
   .rp-footer,
-  .rp-qr-panel,
+  .rp-header-qr,
   .rp-counseling-list li {
     break-inside: avoid;
   }

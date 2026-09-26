@@ -1,47 +1,59 @@
 import { formatScreeningDate } from "../utils.ts";
 import { calculateAgeFromDob } from "../age.ts";
+import {
+  classifyBoneDensityTScore,
+  classifyBloodPressure,
+  classifyClinicalResult,
+  classifyUnclassifiable,
+  parseBloodPressure,
+  toClinicalSex,
+  type ClinicalClassification,
+  type ClinicalContext,
+  type ClinicalTone,
+  type ReportStatus,
+} from "./clinical-classification.ts";
 
-export type ReportStatus = "normal" | "high" | "low" | "info";
+/**
+ * The clinical classification lives in ./clinical-classification.ts and is the
+ * only place a threshold or a colour is decided. These re-exports keep the
+ * historical import path (`@/lib/reports/patient-report-data`) working for
+ * existing callers, station code and report tokens.
+ */
+export {
+  CLINICAL_INTERPRETATION_NOTE,
+  boneDensityStatus,
+  classifyBoneDensityTScore,
+  clinicalToneClass,
+  clinicalToneLabel,
+  resultStatusClass,
+  resultStatusLabel,
+  resultStatusTone,
+} from "./clinical-classification.ts";
+export type {
+  BoneDensityTScoreCategory,
+  ClinicalClassification,
+  ClinicalContext,
+  ClinicalSex,
+  ClinicalTone,
+  ReportStatus,
+} from "./clinical-classification.ts";
 
-/** Visual tone derived from the existing clinical status (single source of truth). */
-export type ReportVisualTone = "normal" | "low" | "high" | "neutral";
-
-const STATUS_TO_TONE: Record<ReportStatus, ReportVisualTone> = {
-  normal: "normal",
-  low: "low",
-  high: "high",
-  info: "neutral",
-};
-
-export const resultStatusTone = (status?: ReportStatus): ReportVisualTone =>
-  status ? STATUS_TO_TONE[status] : "neutral";
-
-/** Semantic CSS class applied to the result value cell (colors live in report.css). */
-export const resultStatusClass = (status?: ReportStatus): string =>
-  `rp-result--${resultStatusTone(status)}`;
-
-/** Accessible plain-text phrase describing the result relative to its normal range. */
-export const resultStatusLabel = (status?: ReportStatus): string => {
-  switch (resultStatusTone(status)) {
-    case "normal":
-      return "within normal range";
-    case "low":
-      return "below normal range";
-    case "high":
-      return "above normal range";
-    default:
-      return "unclassified status";
-  }
-};
+/** @deprecated Kept as an alias of {@link ClinicalTone} for backwards compatibility. */
+export type ReportVisualTone = ClinicalTone;
 
 export interface LaboratoryResultRow {
   test: string;
   result?: string;
   unit?: string;
   normalRange?: string;
+  /** Legacy status derived from the clinical tone (kept for token/caller compatibility). */
   status?: ReportStatus;
-  /** Human-readable clinical interpretation (e.g. "Osteoporosis"), when meaningful over the status phrase. */
+  /** Clinical tone; the only thing colour is derived from. */
+  tone?: ClinicalTone;
+  /** Short plain-text interpretation rendered next to the value, e.g. "Stage 1 hypertension range". */
   interpretation?: string;
+  /** Full clinical sentence (what was decided and on what basis) used for assistive technology. */
+  basis?: string;
 }
 
 export interface PatientHealthScreeningReportDemographics {
@@ -152,19 +164,27 @@ export const REPORT_BP_TEST_ID = "BP";
 
 const REPORTABLE_TEST_ID_SET = new Set<string>([...REPORT_LAB_TEST_IDS, REPORT_BP_TEST_ID]);
 
+/**
+ * Displayed reference intervals. Preserved from the existing report wording
+ * except where it contradicted the centralized classification: Blood Pressure
+ * now states the 2017 ACC/AHA categories, and HbA1c now calls the 5.7-6.4%
+ * band prediabetes, so the printed range and the colour can never disagree.
+ * Wording is kept as short as the original report so the laboratory table
+ * stays inside one A4 page.
+ */
 export const NORMAL_RANGES: Record<string, string> = {
-  Hemoglobin: "Women: 12\u201316 g/dL\nMen: 13\u201318 g/dL\nChildren: 11\u201314 g/dL\nPregnant: 11\u201314 g/dL",
+  Hemoglobin: "Women: 12\u201316 \u00b7 Men: 13\u201318 g/dL\nChildren: 11\u201314 g/dL\nPregnant: 11\u201314 g/dL",
   RBG: "70\u2013110 mg/dL",
   FBS: "Normal: 70\u2013100 mg/dL\nPrediabetes: 100\u2013125 mg/dL\nDiabetes: \u2265126 mg/dL",
-  PPBS: "Normal: <140 mg/dL\nPost-meal: up to 180 mg/dL",
+  PPBS: "Normal: <140 mg/dL\nDiabetes range: \u2265200 mg/dL",
   OGTT: "Normal: <140 mg/dL after 2 h glucose load",
-  HbA1c: "Normal: <5.7%\nPrediabetes: 5.7\u20136.4%\nDiabetes: \u22656.5%",
+  HbA1c: "Prediabetes: 5.7\u20136.4%\nDiabetes: \u22656.5%",
   "Heart Rate": "60\u2013100 beats/min",
   Temperature: "36.5\u201337.5 \u00b0C",
   SpO2: "94\u2013100%",
   "Target Weight": "Per clinician assessment",
   FEV: "Standard chart / clinician assessment",
-  BP: "Normal: <120/80 mmHg\nPre-HTN: 120\u2013139/80\u201389 mmHg\nStage 1 HTN: 140\u2013159/90\u201399 mmHg\nStage 2 HTN: \u2265160/\u2265100 mmHg",
+  BP: "Normal: <120/<80 mmHg (ACC/AHA 2017)\nElevated: 120\u2013129 and <80 mmHg\nStage 1: 130\u2013139 or 80\u201389 mmHg\nStage 2: \u2265140 or \u226590 mmHg",
 };
 
 /** Canonical report id / station test type for the Bone Density (T Score) test. */
@@ -172,68 +192,47 @@ export const BONE_DENSITY_TEST_ID = "Bone Density (T Score)";
 
 /** Reference wording for the Bone Density (T Score) test, as displayed in the report. */
 export const BONE_DENSITY_REFERENCE_TEXT =
-  "Normal: T score upto -1\nOsteopenia: T score between -1.1 to -2.5\nOsteoporosis: T score above -2.5";
+  "Normal: T score \u2265 -1.0\nOsteopenia: T score below -1.0 to -2.5\nOsteoporosis: T score below -2.5";
 
-/** WHO Bone Mineral Density categories derived from the T Score. */
-export type BoneDensityTScoreCategory = "Normal" | "Osteopenia" | "Osteoporosis";
+/** Parses a stored numeric result, tolerating the loose numeric strings the station can hold. */
+const numericValue = (value?: number | string | null): number | null => {
+  if (value === undefined || value === null || value === "") return null;
+  // parseFloat keeps a leading minus sign (a T score of "-2.6" must stay negative)
+  // and still reads values such as "36.8 °C" or "138/86".
+  const n = typeof value === "number" ? value : parseFloat(String(value).trim());
+  return Number.isNaN(n) ? null : n;
+};
+
+/** Copies a classification onto a report row: tone, legacy status and both text layers. */
+const applyClassification = (classification: ClinicalClassification) => ({
+  tone: classification.tone,
+  status: classification.status,
+  interpretation: classification.label,
+  basis: classification.basis,
+});
 
 /**
- * Classifies a T Score into the clinical category. Boundaries are inclusive to
- * avoid value gaps: Normal at T = -1.0 and above, Osteopenia between -2.5 and
- * -1.0, Osteoporosis below -2.5.
+ * Legacy entry point kept for backwards compatibility. It now delegates to the
+ * centralized classifier, so there is exactly one set of thresholds in the
+ * application. `context` is optional; when the caller has the patient to hand
+ * (see buildLabRows) it is passed so sex/age-specific rules can apply.
  */
-export const classifyBoneDensityTScore = (value: number): BoneDensityTScoreCategory => {
-  if (value >= -1) return "Normal";
-  if (value >= -2.5) return "Osteopenia";
-  return "Osteoporosis";
-};
+export const inferTestStatus = (
+  type: string,
+  value?: number | string | null,
+  context?: ClinicalContext,
+): ReportStatus =>
+  classifyClinicalResult({ testId: type, value: numericValue(value), ...(context || {}) }).status;
 
-/** Report status color for the Bone Density (T Score) row. */
-export const boneDensityStatus = (value: number | null | undefined): ReportStatus => {
-  if (value === undefined || value === null || !Number.isFinite(value)) return "info";
-  if (value >= -1) return "normal";
-  if (value >= -2.5) return "low";
-  return "high";
-};
-
-export const inferTestStatus = (type: string, value?: number | string | null): ReportStatus => {
-  if (value === undefined || value === null || value === "") return "info";
-  const v = typeof value === "number" ? value : parseFloat(String(value).replace(/[^0-9.]/g, ""));
-  if (Number.isNaN(v)) return "info";
-
-  switch (type) {
-    case "Hemoglobin":
-      return v >= 18 ? "high" : v < 11 ? "low" : "normal";
-    case "FBS":
-      return v >= 126 ? "high" : v <= 70 ? "low" : "normal";
-    case "RBG":
-      return v >= 200 ? "high" : "normal";
-    case "PPBS":
-      return v >= 180 ? "high" : "normal";
-    case "OGTT":
-      return v >= 200 ? "high" : "normal";
-    case "HbA1c":
-      return v >= 6.5 ? "high" : "normal";
-    case "Heart Rate":
-      return v > 100 ? "high" : v < 60 ? "low" : "normal";
-    case "Temperature":
-      return v > 37.5 ? "high" : v < 36 ? "low" : "normal";
-    case "SpO2":
-      return v < 94 ? "low" : "normal";
-    default:
-      return "info";
-  }
-};
-
-export const inferBpStatus = (combined: string): ReportStatus => {
-  const [sysRaw, diaRaw] = combined.split("/");
-  const sys = parseFloat(sysRaw);
-  const dia = parseFloat(diaRaw);
-  if (Number.isNaN(sys) || Number.isNaN(dia)) return "info";
-  if (sys >= 140 || dia >= 90) return "high";
-  if (sys <= 90 || dia <= 60) return "low";
-  if (sys >= 120 || dia >= 80) return "info";
-  return "normal";
+/** Legacy entry point for the composite Blood Pressure row; delegates to the classifier. */
+export const inferBpStatus = (combined: string, context?: ClinicalContext): ReportStatus => {
+  const parsed = parseBloodPressure(combined);
+  return classifyClinicalResult({
+    testId: "BP",
+    value: parsed ? parsed.systolic : null,
+    secondaryValue: parsed ? parsed.diastolic : null,
+    ...(context || {}),
+  }).status;
 };
 
 const latestByType = (records: ScreeningTestRecord[]): Map<string, ScreeningTestRecord> => {
@@ -291,8 +290,14 @@ function buildDemographicVitals(
  * (Temperature, SpO2) are skipped here — they belong to the Demographics section.
  * This is the single source of truth for both the checkbox options and the rows
  * rendered in the report.
+ *
+ * Every row's tone, status and text come from the centralized classifier, using
+ * the patient's sex and DOB-derived age where a test needs them.
  */
-function buildLabRows(records: ScreeningTestRecord[]): Array<{ id: string; row: LaboratoryResultRow }> {
+function buildLabRows(
+  records: ScreeningTestRecord[],
+  context: ClinicalContext = {},
+): Array<{ id: string; row: LaboratoryResultRow }> {
   const latest = latestByType(records);
   const rows: Array<{ id: string; row: LaboratoryResultRow }> = [];
 
@@ -303,23 +308,23 @@ function buildLabRows(records: ScreeningTestRecord[]): Array<{ id: string; row: 
     const value = displayValue(rec);
     const unit = rec.unit || "";
     if (!value && rec.test_type !== "Counseling") continue;
+    const numeric = numericValue(rec.value_numeric ?? rec.value_text);
     if (col.type === BONE_DENSITY_TEST_ID) {
-      const raw = rec.value_numeric ?? (rec.value_text ? parseFloat(String(rec.value_text)) : Number.NaN);
-      const hasNumeric = raw !== undefined && raw !== null && Number.isFinite(Number(raw));
-      const category = hasNumeric ? classifyBoneDensityTScore(Number(raw)) : null;
+      const classification = classifyClinicalResult({ testId: col.type, value: numeric, ...context });
+      const category = numeric !== null ? classifyBoneDensityTScore(numeric) : null;
       rows.push({
         id: col.type,
         row: {
           test: col.label,
           result: value ? (unit ? `${value} ${unit}` : value) : "N/A",
           unit,
-          normalRange: hasNumeric ? `${category}\n${BONE_DENSITY_REFERENCE_TEXT}` : BONE_DENSITY_REFERENCE_TEXT,
-          status: boneDensityStatus(hasNumeric ? Number(raw) : null),
-          interpretation: category ?? undefined,
+          normalRange: category ? `${category}\n${BONE_DENSITY_REFERENCE_TEXT}` : BONE_DENSITY_REFERENCE_TEXT,
+          ...applyClassification(classification),
         },
       });
       continue;
     }
+    const classification = classifyClinicalResult({ testId: col.type, value: numeric, ...context });
     rows.push({
       id: col.type,
       row: {
@@ -327,7 +332,7 @@ function buildLabRows(records: ScreeningTestRecord[]): Array<{ id: string; row: 
         result: value ? (unit ? `${value} ${unit}` : value) : "N/A",
         unit,
         normalRange: NORMAL_RANGES[col.type],
-        status: inferTestStatus(col.type, rec.value_numeric ?? (rec.value_text ? value : null)),
+        ...applyClassification(classification),
       },
     });
   }
@@ -339,6 +344,7 @@ function buildLabRows(records: ScreeningTestRecord[]): Array<{ id: string; row: 
     const sVal = sys ? displayValue(sys) : "N/A";
     const dVal = dia ? displayValue(dia) : "N/A";
     const label = `${sVal}/${dVal}`;
+    const parsed = parseBloodPressure(label);
     rows.push({
       id: REPORT_BP_TEST_ID,
       row: {
@@ -346,11 +352,19 @@ function buildLabRows(records: ScreeningTestRecord[]): Array<{ id: string; row: 
         result: `${label} mmHg`,
         unit: "mmHg",
         normalRange: NORMAL_RANGES.BP,
-        status: inferBpStatus(label),
+        ...applyClassification(
+          classifyClinicalResult({
+            testId: REPORT_BP_TEST_ID,
+            value: parsed?.systolic ?? null,
+            secondaryValue: parsed?.diastolic ?? null,
+            ...context,
+          }),
+        ),
       },
     });
   } else if (bpRec) {
     const label = bpRec.value_text || displayValue(bpRec);
+    const parsed = parseBloodPressure(label);
     rows.push({
       id: REPORT_BP_TEST_ID,
       row: {
@@ -358,7 +372,14 @@ function buildLabRows(records: ScreeningTestRecord[]): Array<{ id: string; row: 
         result: label ? `${label} mmHg` : "N/A",
         unit: "mmHg",
         normalRange: NORMAL_RANGES.BP,
-        status: inferBpStatus(label),
+        ...applyClassification(
+          classifyClinicalResult({
+            testId: REPORT_BP_TEST_ID,
+            value: parsed?.systolic ?? null,
+            secondaryValue: parsed?.diastolic ?? null,
+            ...context,
+          }),
+        ),
       },
     });
   }
@@ -404,7 +425,16 @@ export function buildHealthScreeningReportData(
 ): PatientHealthScreeningReportData {
   const latest = latestByType(records);
 
-  const laboratoryResults = buildLabRows(records)
+  // Age is always re-derived from DOB against the screening date (dateKey, IST).
+  // The stored `patients.age` column is never trusted — it goes stale after a
+  // birthday, and a historical report must not change just because the patient
+  // had a birthday after their screening. The same age and the recorded sex are
+  // handed to the clinical classifier, which only uses them for tests that
+  // genuinely need them (hemoglobin) and refuses to guess when they are missing.
+  const reportedAge = calculateAgeFromDob(patientRow.dob, dateKey);
+  const clinicalContext: ClinicalContext = { sex: toClinicalSex(patientRow.gender), ageYears: reportedAge };
+
+  const laboratoryResults = buildLabRows(records, clinicalContext)
     .filter(({ id }) => isTestIncluded(id, includedTests))
     .map(({ row }) => row);
 
@@ -424,12 +454,6 @@ export function buildHealthScreeningReportData(
   const phone = patientRow.phone || patientRow.mobile || undefined;
   const bmi = patientRow.bmi !== undefined && patientRow.bmi !== null ? String(patientRow.bmi) : undefined;
   const vitals = buildDemographicVitals(records);
-
-  // Age is always re-derived from DOB against the screening date (dateKey, IST).
-  // The stored `patients.age` column is never trusted — it goes stale after a
-  // birthday, and a historical report must not change just because the patient
-  // had a birthday after their screening.
-  const reportedAge = calculateAgeFromDob(patientRow.dob, dateKey);
 
   return {
     patient: {
@@ -465,29 +489,72 @@ const DEMO_COUNSELING = [
   "Contact the Department of Pharmacy Practice at the college for medication counselling and health screening reminders, and do not share your report access QR code with others.",
 ];
 
+/** Neutral row fields for a value this application has no verified threshold for. */
+const unclassified = () =>
+  applyClassification(
+    classifyUnclassifiable(
+      "The station has no test type for this analyte, so it is never measured or reported for a real patient and no clinical threshold has been verified for it in this application.",
+    ),
+  );
+
+/**
+ * Demo-only analytes. The station has no test_type for any of them, so the
+ * report builder never emits these rows for a real patient and no clinical
+ * threshold has been verified for them here. They are deliberately left
+ * unclassified (neutral) rather than being given a colour that no source in
+ * this application supports.
+ */
 const DEMO_EXTRA_ROWS: LaboratoryResultRow[] = [
-  { test: "Total Cholesterol (TC)", result: "178 mg/dL", normalRange: "Desirable: <200 mg/dL\nBorderline: 200\u2013239 mg/dL", status: "normal" },
-  { test: "Triglycerides (TG)", result: "132 mg/dL", normalRange: "Normal: <150 mg/dL\nBorderline: 150\u2013199 mg/dL", status: "normal" },
-  { test: "HDL Cholesterol", result: "45 mg/dL", normalRange: "Men: >40 mg/dL\nWomen: >50 mg/dL", status: "normal" },
-  { test: "LDL Cholesterol", result: "96 mg/dL", normalRange: "Optimal: <100 mg/dL\nNear optimal: 100\u2013129 mg/dL", status: "normal" },
-  { test: "Serum Creatinine", result: "0.9 mg/dL", normalRange: "Women: 0.5\u20131.1 mg/dL\nMen: 0.6\u20131.3 mg/dL", status: "normal" },
-  { test: "Uric Acid", result: "5.8 mg/dL", normalRange: "Women: 2.4\u20136.0 mg/dL\nMen: 3.4\u20137.0 mg/dL", status: "normal" },
-  { test: "Vitamin D (25-OH)", result: "31 ng/mL", normalRange: "Deficient: <20 ng/mL\nInsufficient: 20\u201329 ng/mL\nSufficient: 30\u2013100 ng/mL", status: "info" },
+  { test: "Total Cholesterol (TC)", result: "178 mg/dL", normalRange: "Desirable: <200 mg/dL\nBorderline: 200\u2013239 mg/dL", ...unclassified() },
+  { test: "Triglycerides (TG)", result: "132 mg/dL", normalRange: "Normal: <150 mg/dL\nBorderline: 150\u2013199 mg/dL", ...unclassified() },
+  { test: "HDL Cholesterol", result: "45 mg/dL", normalRange: "Men: >40 mg/dL\nWomen: >50 mg/dL", ...unclassified() },
+  { test: "LDL Cholesterol", result: "96 mg/dL", normalRange: "Optimal: <100 mg/dL\nNear optimal: 100\u2013129 mg/dL", ...unclassified() },
+  { test: "Serum Creatinine", result: "0.9 mg/dL", normalRange: "Women: 0.5\u20131.1 mg/dL\nMen: 0.6\u20131.3 mg/dL", ...unclassified() },
+  { test: "Uric Acid", result: "5.8 mg/dL", normalRange: "Women: 2.4\u20136.0 mg/dL\nMen: 3.4\u20137.0 mg/dL", ...unclassified() },
+  { test: "Vitamin D (25-OH)", result: "31 ng/mL", normalRange: "Deficient: <20 ng/mL\nInsufficient: 20\u201329 ng/mL\nSufficient: 30\u2013100 ng/mL", ...unclassified() },
 ];
+
+/** Builds a demo row through the same classifier the real report uses. */
+const demoRow = (
+  testId: string,
+  test: string,
+  result: string,
+  value: number | null,
+  unit: string,
+  context: ClinicalContext,
+  extra: Partial<LaboratoryResultRow> = {},
+): LaboratoryResultRow => ({
+  test,
+  result,
+  unit,
+  normalRange: NORMAL_RANGES[testId],
+  ...applyClassification(classifyClinicalResult({ testId, value, ...context })),
+  ...extra,
+});
+
+const DEMO_CONTEXT: ClinicalContext = { sex: "male", ageYears: 24 };
 
 export const demoReportData = (): PatientHealthScreeningReportData => {
   const laboratory: LaboratoryResultRow[] = [
-    { test: "Hemoglobin (Hb)", result: "14.2 g/dL", unit: "g/dL", normalRange: NORMAL_RANGES.Hemoglobin, status: "normal" },
-    { test: "Random Blood Glucose (RBS)", result: "96 mg/dL", unit: "mg/dL", normalRange: NORMAL_RANGES.RBG, status: "normal" },
-    { test: "Fasting Blood Sugar (FBS)", result: "88 mg/dL", unit: "mg/dL", normalRange: NORMAL_RANGES.FBS, status: "normal" },
-    { test: "Post-Prandial Blood Sugar (PPBS)", result: "122 mg/dL", unit: "mg/dL", normalRange: NORMAL_RANGES.PPBS, status: "normal" },
-    { test: "Oral Glucose Tolerance Test (OGTT)", result: "132 mg/dL", unit: "mg/dL", normalRange: NORMAL_RANGES.OGTT, status: "normal" },
-    { test: "Glycated Hemoglobin (HbA1c)", result: "5.4 %", unit: "%", normalRange: NORMAL_RANGES.HbA1c, status: "normal" },
-    { test: "Heart Rate", result: "74 /min", unit: "/min", normalRange: NORMAL_RANGES["Heart Rate"], status: "normal" },
-    { test: "Target Weight", result: "72 kg", unit: "kg", normalRange: NORMAL_RANGES["Target Weight"], status: "info" },
-    { test: "Forced Expiratory Volume (FEV1)", result: "3.1 L", unit: "L", normalRange: NORMAL_RANGES.FEV, status: "info" },
-    { test: "Bone Density (T Score)", result: "-1.8 T Score", unit: "T Score", normalRange: `Osteopenia\n${BONE_DENSITY_REFERENCE_TEXT}`, status: "low", interpretation: "Osteopenia" },
-    { test: "Blood Pressure", result: "138/86 mmHg", unit: "mmHg", normalRange: NORMAL_RANGES.BP, status: "info" },
+    demoRow("Hemoglobin", "Hemoglobin (Hb)", "14.2 g/dL", 14.2, "g/dL", DEMO_CONTEXT),
+    demoRow("RBG", "Random Blood Glucose (RBS)", "96 mg/dL", 96, "mg/dL", DEMO_CONTEXT),
+    demoRow("FBS", "Fasting Blood Sugar (FBS)", "88 mg/dL", 88, "mg/dL", DEMO_CONTEXT),
+    demoRow("PPBS", "Post-Prandial Blood Sugar (PPBS)", "122 mg/dL", 122, "mg/dL", DEMO_CONTEXT),
+    demoRow("OGTT", "Oral Glucose Tolerance Test (OGTT)", "132 mg/dL", 132, "mg/dL", DEMO_CONTEXT),
+    demoRow("HbA1c", "Glycated Hemoglobin (HbA1c)", "5.4 %", 5.4, "%", DEMO_CONTEXT),
+    demoRow("Heart Rate", "Heart Rate", "74 /min", 74, "/min", DEMO_CONTEXT),
+    demoRow("Target Weight", "Target Weight", "72 kg", 72, "kg", DEMO_CONTEXT),
+    demoRow("FEV", "Forced Expiratory Volume (FEV1)", "3.1 L", 3.1, "L", DEMO_CONTEXT),
+    demoRow("Bone Density (T Score)", "Bone Density (T Score)", "-1.8 T Score", -1.8, "T Score", DEMO_CONTEXT, {
+      normalRange: `Osteopenia\n${BONE_DENSITY_REFERENCE_TEXT}`,
+    }),
+    {
+      test: "Blood Pressure",
+      result: "138/86 mmHg",
+      unit: "mmHg",
+      normalRange: NORMAL_RANGES.BP,
+      ...applyClassification(classifyBloodPressure(138, 86)),
+    },
     ...DEMO_EXTRA_ROWS,
   ];
 
