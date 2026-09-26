@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  CLINICAL_INTERPRETATION_NOTE,
   classifyBloodPressure,
   classifyBoneDensity,
   classifyClinicalResult,
@@ -81,15 +80,6 @@ test("sex is only derived from an explicit recorded value", () => {
   assert.equal(toClinicalSex(""), "unknown");
   assert.equal(toClinicalSex(null), "unknown");
   assert.equal(toClinicalSex("Other"), "unknown");
-});
-
-test("the standing safety note is present, short, and says colour is not a diagnosis", () => {
-  assert.match(CLINICAL_INTERPRETATION_NOTE, /not a diagnosis/i);
-  assert.match(CLINICAL_INTERPRETATION_NOTE, /limits vary by/i);
-  assert.match(CLINICAL_INTERPRETATION_NOTE, /clinician/i);
-  // It must stay short enough to print on one line under the table: a second
-  // line pushed the densest real reports onto a second A4 page.
-  assert.ok(CLINICAL_INTERPRETATION_NOTE.length <= 130, `${CLINICAL_INTERPRETATION_NOTE.length} characters`);
 });
 
 /* ------------------------------------------------------------------ *
@@ -664,33 +654,33 @@ test("every clinical tone meets WCAG AA on the printed table background", () => 
   }
 });
 
-test("the standing safety note is printed in the footer band, not as a table sibling", () => {
-  // As a sibling of the laboratory table the note added a block to the report
-  // flow, which pushed the densest real screening day (patient tej531) onto a
-  // second A4 page. The footer is a fixed-height, overflow-hidden box, so the
-  // note belongs there where it cannot change the page count.
-  const footer = repoFile("components/reports/ReportFooter.tsx");
-  assert.match(footer, /CLINICAL_INTERPRETATION_NOTE/, "the footer no longer prints the standing note");
-  assert.match(footer, /rp-footer-note/, "the standing note is not marked as footer fine print");
-
-  const table = repoFile("components/reports/ReportLaboratoryResults.tsx");
-  assert.doesNotMatch(
-    table,
-    /CLINICAL_INTERPRETATION_NOTE/,
-    "the note must not be rendered inside the laboratory table again",
-  );
-
-  // It must still reach every report surface, and the footer is shared by all
-  // of them, so exactly one component has to carry it.
-  const carriers = [
+test("the standing safety note is no longer printed anywhere in the report", () => {
+  // The footer disclaimer was removed from the printed sheet. The non-diagnosis
+  // framing now lives only in each result's own `basis` sentence, so nothing may
+  // reintroduce the old shared footnote into any report surface.
+  const surfaces = [
     "components/reports/ReportFooter.tsx",
     "components/reports/ReportLaboratoryResults.tsx",
     "components/reports/PatientHealthScreeningReport.tsx",
-  ].filter((file) => repoFile(file).includes("CLINICAL_INTERPRETATION_NOTE"));
-  assert.deepEqual(carriers, ["components/reports/ReportFooter.tsx"]);
+  ];
+  for (const file of surfaces) {
+    assert.doesNotMatch(
+      repoFile(file),
+      /rp-footer-note|Colours follow published screening thresholds/i,
+      `${file} still prints the retired standing safety note`,
+    );
+  }
 
-  // And the note itself must stay a non-diagnosis disclaimer.
-  assert.match(CLINICAL_INTERPRETATION_NOTE, /not a diagnosis/i);
-  assert.match(CLINICAL_INTERPRETATION_NOTE, /confirm with a clinician/i);
+  // The retired constant must not linger as dead code either.
+  for (const file of [
+    "lib/reports/clinical-classification.ts",
+    "lib/reports/patient-report-data.ts",
+  ]) {
+    assert.doesNotMatch(
+      repoFile(file),
+      /CLINICAL_INTERPRETATION_NOTE/,
+      `${file} still declares the retired CLINICAL_INTERPRETATION_NOTE`,
+    );
+  }
 });
 

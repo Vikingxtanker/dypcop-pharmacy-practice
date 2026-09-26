@@ -20,7 +20,6 @@ import {
  * existing callers, station code and report tokens.
  */
 export {
-  CLINICAL_INTERPRETATION_NOTE,
   boneDensityStatus,
   classifyBoneDensityTScore,
   clinicalToneClass,

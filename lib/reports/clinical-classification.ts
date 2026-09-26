@@ -30,7 +30,7 @@
  * - Nothing here is a diagnosis. Reference intervals and decision thresholds
  *   vary by laboratory, analyser method, population and clinical context;
  *   this classification is a screening aid for the reviewing pharmacist or
- *   physician. See CLINICAL_INTERPRETATION_NOTE for the report footnote.
+ *   physician. Each result's `basis` sentence carries that caveat per row.
  * - Demographic vitals (Temperature, SpO2) are never classified: they are
  *   reported as plain readings in Demographics, not as laboratory results.
  *
@@ -115,16 +115,6 @@ export interface ClinicalResultRequest extends ClinicalContext {
   secondaryValue?: number | null;
 }
 
-/** Standing note shown under the laboratory table. */
-/**
- * Single-line footnote printed under the laboratory table. It is kept to one
- * printed line on purpose: the table already sits at the limit of one A4 page,
- * and a second line pushed the densest real reports onto a second page. The
- * full per-result reasoning stays in each row's accessible label.
- */
-export const CLINICAL_INTERPRETATION_NOTE =
-  "Colours follow published screening thresholds, not a diagnosis; " +
-  "limits vary by lab, method and patient \u2014 confirm with a clinician.";
 /**
  * Legacy status <-> clinical tone bridge. "low" was always the amber
  * "not normal, not urgent" tone and "high" the red one, so the mapping keeps

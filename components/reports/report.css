@@ -790,29 +790,6 @@ body.rp-pdf-body .rp-sheet,
   font-style: italic;
 }
 
-/* Standing clinical-safety note for the laboratory result colours.
-   Rendered in the footer band (see ReportFooter.tsx) rather than under the
-   table. The footer is a fixed-height, overflow-hidden box, so the note costs
-   no page height: as a table sibling it pushed the densest real screening day
-   onto a second A4 page. It is absolutely positioned into the band's measured
-   slack so it cannot reflow the sheet. Now that the QR has moved to the header
-   it spans the full width, which is what lets it print on one line. */
-.rp-footer-note {
-  position: absolute;
-  left: 8mm;
-  right: 8mm;
-  bottom: 1.8mm;
-  margin: 0;
-  color: var(--report-maroon-dark);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: var(--report-font-footnote);
-  font-style: italic;
-  font-weight: 700;
-  line-height: 1.2;
-  text-align: center;
-  z-index: 4;
-}
-
 /* ---------------------------------------------------------
    SECTION 5 — PATIENT COUNSELING
    --------------------------------------------------------- */
