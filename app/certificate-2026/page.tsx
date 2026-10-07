@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import MainNavbar from "@/components/layout/MainNavbar";
 import Footer from "@/components/layout/Footer";
 import { supabase } from "@/lib/supabase";
@@ -14,49 +14,180 @@ const NAME_FONT_SIZE = 36;
 const NAME_TEXT_COLOR_RGB = { r: 0, g: 0, b: 0 };
 const NAME_Y = 283;
 
+interface ParticipantRow {
+  id: string;
+  name: string;
+  phone: string | null;
+  prefix: string | null;
+}
+
+interface SelectedParticipant {
+  id: string;
+  name: string;
+  phone: string | null;
+  prefix: string | null;
+  displayName: string;
+}
+
 export default function Certificate2026Page() {
+  const [searchQuery, setSearchQuery] = useState("");
   const [inputValue, setInputValue] = useState("");
+  const [selectedParticipant, setSelectedParticipant] = useState<SelectedParticipant | null>(null);
+  const [results, setResults] = useState<ParticipantRow[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [loading, setLoading] = useState(false);
   const [certReady, setCertReady] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pdfBytesRef = useRef<Uint8Array | null>(null);
   const verifiedNameRef = useRef("");
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const skipSearchRef = useRef(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const latestQueryRef = useRef("");
 
-  const handleVerify = async () => {
-    if (!inputValue.trim()) {
-      Swal.fire("Input Required", "Please enter your registered name or phone number.", "warning");
+  const buildDisplayName = (row: ParticipantRow) => `${row.prefix ? row.prefix + " " : ""}${row.name}`.trim();
+
+  const handleClear = () => {
+    skipSearchRef.current = false;
+    setInputValue("");
+    setSearchQuery("");
+    setSelectedParticipant(null);
+    setResults([]);
+    setSearching(false);
+    setShowDropdown(false);
+    setHighlightedIndex(-1);
+    setSearchError(null);
+    inputRef.current?.focus();
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const trimmed = value.trim();
+    setInputValue(value);
+    setSearchQuery(value);
+    setSelectedParticipant(null);
+    setSearchError(null);
+    setHighlightedIndex(-1);
+    if (trimmed.length < 3) {
+      setResults([]);
+      setSearching(false);
+      setShowDropdown(false);
+    } else {
+      setSearching(true);
+      setShowDropdown(true);
+    }
+  };
+
+  const handleSelectParticipant = (row: ParticipantRow) => {
+    const displayName = buildDisplayName(row);
+    skipSearchRef.current = true;
+    setSelectedParticipant({ id: row.id, name: row.name, phone: row.phone, prefix: row.prefix, displayName });
+    setInputValue(displayName);
+    setSearchQuery(displayName);
+    setResults([]);
+    setSearching(false);
+    setShowDropdown(false);
+    setHighlightedIndex(-1);
+    setSearchError(null);
+  };
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    latestQueryRef.current = trimmed;
+    if (skipSearchRef.current) {
+      skipSearchRef.current = false;
       return;
     }
+    if (trimmed.length < 3) return;
+    const controller = new AbortController();
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const query = trimmed;
+        // PostgREST or= values: quote and escape so , " \ in user input stay literal
+        const escaped = query.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        const { data, error } = await supabase
+          .from(PARTICIPANTS_TABLE)
+          .select("id, name, phone, prefix")
+          .or(`name.ilike."%${escaped}%",phone.ilike."%${escaped}%"`)
+          .limit(10)
+          .abortSignal(controller.signal);
+        if (controller.signal.aborted) return;
+        if (error) throw error;
+        const rows = (data as ParticipantRow[]) || [];
+        if (latestQueryRef.current === query) {
+          setResults(rows);
+          setHighlightedIndex(-1);
+        }
+      } catch (err: unknown) {
+        if ((err as Error)?.name === "AbortError" || controller.signal.aborted) return;
+        console.error(err);
+        setSearchError("Unable to search participants. Please try again.");
+        setResults([]);
+      } finally {
+        if (!controller.signal.aborted) setSearching(false);
+      }
+    }, 275);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      controller.abort();
+    };
+  }, [searchQuery]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) && inputRef.current && !inputRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+        setHighlightedIndex(-1);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showDropdown && results.length === 0 && !(searching && searchQuery.trim().length >= 3)) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (results.length === 0) return;
+      if (!showDropdown) setShowDropdown(true);
+      if (e.key === "ArrowDown") {
+        const next = highlightedIndex + 1;
+        setHighlightedIndex(next < results.length ? next : 0);
+      } else {
+        const prev = highlightedIndex - 1;
+        setHighlightedIndex(prev >= 0 ? prev : results.length - 1);
+      }
+      return;
+    }
+    if (e.key === "Enter") {
+      if (highlightedIndex >= 0 && highlightedIndex < results.length) {
+        e.preventDefault();
+        handleSelectParticipant(results[highlightedIndex]);
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      setShowDropdown(false);
+      setHighlightedIndex(-1);
+      return;
+    }
+  };
+
+  const handleVerify = async () => {
+    if (!selectedParticipant) {
+      Swal.fire("Input Required", "Please search and select a registered participant.", "warning");
+      return;
+    }
     setLoading(true);
     Swal.fire({ title: "Verifying...", text: "Please wait...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
     try {
-      const { data, error } = await supabase.from(PARTICIPANTS_TABLE).select("name, phone, prefix");
-      if (error) throw error;
-
-      const inputLower = inputValue.toLowerCase().trim();
-      let pName = "";
-      let pPrefix = "";
-      let matched = false;
-
-      for (const row of data || []) {
-        const dbName = row.name?.toLowerCase().trim();
-        const dbPhone = row.phone?.trim();
-        if (dbName === inputLower || dbPhone === inputValue.trim()) {
-          pName = row.name ?? "";
-          pPrefix = row.prefix ?? "";
-          matched = true;
-          break;
-        }
-      }
-
-      if (!matched) {
-        Swal.fire("Not Found", "No participant found with this name or phone number.", "error");
-        setLoading(false);
-        return;
-      }
-
+      const pName = selectedParticipant.name ?? "";
+      const pPrefix = selectedParticipant.prefix ?? "";
       const verifiedName = `${pPrefix} ${pName}`.trim();
       verifiedNameRef.current = verifiedName;
 
@@ -65,7 +196,6 @@ export default function Certificate2026Page() {
         import("pdfjs-dist"),
         import("@pdf-lib/fontkit"),
       ]);
-
       const { PDFDocument, rgb } = pdfLibModule;
       const pdfjsLib = pdfjsLibModule;
       const fontkit = fontkitModule.default ?? fontkitModule;
@@ -74,47 +204,37 @@ export default function Certificate2026Page() {
       const res = await fetch(CERTIFICATE_TEMPLATE_URL);
       if (!res.ok) throw new Error("Certificate template not found");
       const templateBytes = await res.arrayBuffer();
-
       const pdfDoc = await PDFDocument.load(templateBytes);
       pdfDoc.registerFontkit(fontkit);
-
       const fontBytes = await fetch(FONT_URL).then((r) => r.arrayBuffer());
       const customFont = await pdfDoc.embedFont(fontBytes);
-
       const page = pdfDoc.getPages()[0];
       const pageWidth = page.getWidth();
       const fontSize = NAME_FONT_SIZE;
       const textWidth = customFont.widthOfTextAtSize(verifiedName, fontSize);
       const x = (pageWidth - textWidth) / 2;
       const y = NAME_Y;
-
       page.drawText(verifiedName, { x, y, size: fontSize, font: customFont, color: rgb(NAME_TEXT_COLOR_RGB.r, NAME_TEXT_COLOR_RGB.g, NAME_TEXT_COLOR_RGB.b) });
-
-const generatedPdfBytes = await pdfDoc.save();
+      const generatedPdfBytes = await pdfDoc.save();
       pdfBytesRef.current = generatedPdfBytes.slice();
 
       const pdf = await pdfjsLib.getDocument({ data: generatedPdfBytes }).promise;
       const pdfPage = await pdf.getPage(1);
       const canvas = canvasRef.current;
       if (!canvas) return;
-
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-
       const dpr = window.devicePixelRatio || 1;
       const baseViewport = pdfPage.getViewport({ scale: 1 });
       const cssWidth = Math.min(window.innerWidth * 0.9, 1000);
       const scale = cssWidth / baseViewport.width;
       const viewport = pdfPage.getViewport({ scale: scale * dpr });
-
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       canvas.style.width = `${viewport.width / dpr}px`;
       canvas.style.height = `${viewport.height / dpr}px`;
-
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       await pdfPage.render({ canvas: canvas as HTMLCanvasElement, viewport }).promise;
-
       setCertReady(true);
       Swal.fire("Success!", "Certificate generated successfully!", "success");
     } catch (err) {
@@ -130,7 +250,6 @@ const generatedPdfBytes = await pdfDoc.save();
       Swal.fire("Error", "No certificate generated yet.", "warning");
       return;
     }
-
     const blob = new Blob([new Uint8Array(pdfBytesRef.current)], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -141,7 +260,6 @@ const generatedPdfBytes = await pdfDoc.save();
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-
     Swal.fire({ icon: "success", title: "Certificate Downloaded!", text: "Please check your downloads.", confirmButtonColor: "#0077c8" });
   };
 
@@ -153,10 +271,67 @@ const generatedPdfBytes = await pdfDoc.save();
           <h2 className="text-center fw-bold mb-4">Health Camp Certificate 2026</h2>
           <div className="row justify-content-center">
             <div className="col-md-6">
-              <div className="bg-white p-4 shadow rounded text-center">
+              <div className="bg-white p-4 shadow rounded text-center position-relative">
                 <label className="form-label">Enter your registered name or phone number</label>
-                <input type="text" className="form-control mb-3" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Name or Phone" />
-                <button className="btn btn-primary px-4" onClick={handleVerify} disabled={loading}>
+                <div ref={dropdownRef} className="position-relative">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    className="form-control"
+                    value={inputValue}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
+                    onFocus={() => {
+                      if (searchQuery.trim().length >= 3 && results.length > 0) setShowDropdown(true);
+                    }}
+                    placeholder="Search participant..."
+                    autoComplete="off"
+                    style={inputValue ? { paddingRight: "2.25rem" } : undefined}
+                  />
+                  {inputValue && (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      className="btn btn-link position-absolute top-50 end-0 translate-middle-y border-0 text-secondary p-0 me-2"
+                      style={{ lineHeight: 1, textDecoration: "none" }}
+                      onClick={handleClear}
+                    >
+                      <i className="bi bi-x-lg"></i>
+                    </button>
+                  )}
+                  {showDropdown && (searchQuery.trim().length >= 3 || searching || searchError) && (
+                    <div
+                      className="position-absolute top-100 start-0 end-0 bg-white border rounded shadow-sm mt-1"
+                      style={{ maxHeight: "280px", overflowY: "auto", zIndex: 1050 }}
+                    >
+                      {searching && (
+                        <div className="p-3 text-center small text-muted">Searching...</div>
+                      )}
+                      {!searching && searchError && results.length === 0 && (
+                        <div className="p-3 text-center small text-danger">{searchError}</div>
+                      )}
+                      {!searching && !searchError && results.map((row, idx) => {
+                        const dn = buildDisplayName(row);
+                        return (
+                          <button
+                            type="button"
+                            key={row.id}
+                            className={`w-100 text-start border-0 bg-transparent px-3 py-2 d-flex flex-column ${idx === highlightedIndex ? "bg-light" : ""}`}
+                            onClick={() => handleSelectParticipant(row)}
+                            onMouseEnter={() => setHighlightedIndex(idx)}
+                          >
+                            <span className="fw-semibold">{dn}</span>
+                            {row.phone && <span className="small text-muted">{row.phone}</span>}
+                          </button>
+                        );
+                      })}
+                      {!searching && !searchError && results.length === 0 && searchQuery.trim().length >= 3 && (
+                        <div className="p-3 text-center small text-muted">No participants found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button className="btn btn-primary px-4 mt-3" onClick={handleVerify} disabled={loading}>
                   {loading ? "Verifying..." : "Verify & Generate"}
                 </button>
               </div>
