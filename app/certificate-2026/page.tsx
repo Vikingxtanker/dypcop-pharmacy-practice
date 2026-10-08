@@ -16,12 +16,12 @@ const NAME_FONT_SIZE = 36;
 const NAME_TEXT_COLOR_RGB = { r: 0, g: 0, b: 0 };
 const NAME_Y = 283;
 const CERT_ID_TEXT_SIZE = 8;
-const CERT_ID_OFFSET_TOP = 30;
 const QR_SIZE = 60; // reduced ~40% relative to 100
 const QR_OFFSET_TOP = 40;
 const QR_OFFSET_RIGHT = 50;
 const VERIFY_TEXT_SIZE = 7;
-const VERIFY_OFFSET_TOP = 110;
+const VERIFY_OFFSET_TOP = 95; // gap below QR (y = pageHeight - this)
+const CERT_ID_OFFSET_TOP = 107; // gap below verify text (larger = lower)
 
 interface ParticipantRow {
   id: string;
