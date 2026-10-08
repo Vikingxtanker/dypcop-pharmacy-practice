@@ -57,24 +57,42 @@ async function fetchVerificationData(certificateId: string): Promise<Verificatio
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
   if (!supabaseUrl || !supabaseKey) {
+    console.error("[certificate-verify] Missing Supabase admin credentials", {
+      hasUrl: Boolean(supabaseUrl),
+      hasKey: Boolean(supabaseKey),
+    });
     return { found: false, error: "server_error" };
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
+  const trimmedId = certificateId.trim();
+  console.error("[certificate-verify] lookup start", {
+    certificateId,
+    trimmedId,
+    supabaseUrlHost: supabaseUrl ? new URL(supabaseUrl).hostname : null,
+    idLen: trimmedId.length,
+  });
+
   const { data: cert, error: certError } = await supabase
     .from("certificates2026")
     .select("id, certificate_id, participant_id, issued_at, status")
-    .eq("certificate_id", certificateId)
+    .eq("certificate_id", trimmedId)
     .maybeSingle();
 
   if (certError) {
-    console.error("certificate-2026 verify: cert lookup failed", certError);
+    console.error("certificate-2026 verify: cert lookup failed", {
+      code: certError.code,
+      message: certError.message,
+      details: certError.details,
+      hint: certError.hint,
+    });
     return { found: false, error: "server_error" };
   }
 
   if (!cert) {
-    return { found: false, error: "not_found", certificateId };
+    console.error("[certificate-verify] cert not found", { trimmedId });
+    return { found: false, error: "not_found", certificateId: trimmedId };
   }
 
   const certificate = cert as CertificateRecord;
@@ -86,7 +104,12 @@ async function fetchVerificationData(certificateId: string): Promise<Verificatio
     .maybeSingle();
 
   if (partError) {
-    console.error("certificate-2026 verify: participant lookup failed", partError);
+    console.error("certificate-2026 verify: participant lookup failed", {
+      code: partError.code,
+      message: partError.message,
+      details: partError.details,
+      hint: partError.hint,
+    });
     return { found: false, error: "server_error" };
   }
 
@@ -94,8 +117,14 @@ async function fetchVerificationData(certificateId: string): Promise<Verificatio
     console.error("certificate-2026 verify: participant missing for certificate", {
       certificate_id: certificate.certificate_id,
     });
-    return { found: false, error: "data_inconsistent", certificateId };
+    return { found: false, error: "data_inconsistent", certificateId: trimmedId };
   }
+
+  console.error("[certificate-verify] found", {
+    certificate_id: certificate.certificate_id,
+    status: certificate.status,
+    hasParticipant: true,
+  });
 
   const p = participant as Pick<ParticipantRecord, "name" | "prefix">;
   const participantName = formatParticipantName(p.name, p.prefix);
