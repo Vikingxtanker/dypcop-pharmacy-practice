@@ -262,19 +262,7 @@ export default function Certificate2026Page() {
 
         // Use standard font (Helvetica) for verification text; keep participant name font separate (customFont used for name only)
         const verificationFont = await pdfDoc.embedFont("Helvetica");
-        // Certificate ID text
-        const certIdText = `Certificate ID: ${certificateId}`;
-        const certIdSize = CERT_ID_TEXT_SIZE;
-        const certIdWidth = verificationFont.widthOfTextAtSize(certIdText, certIdSize);
-        page.drawText(certIdText, {
-          x: pageWidth - QR_OFFSET_RIGHT - qrDisplayWidth / 2 - certIdWidth / 2,
-          y: pageHeight - CERT_ID_OFFSET_TOP,
-          size: certIdSize,
-          font: verificationFont,
-          color: rgb(0, 0, 0),
-        });
-
-        // Verification text
+        // Verification text (above Certificate ID)
         const verifyText = "Scan QR code to verify";
         const verifySize = VERIFY_TEXT_SIZE;
         const verifyWidth = verificationFont.widthOfTextAtSize(verifyText, verifySize);
@@ -282,6 +270,18 @@ export default function Certificate2026Page() {
           x: pageWidth - QR_OFFSET_RIGHT - qrDisplayWidth / 2 - verifyWidth / 2,
           y: pageHeight - VERIFY_OFFSET_TOP,
           size: verifySize,
+          font: verificationFont,
+          color: rgb(0, 0, 0),
+        });
+
+        // Certificate ID text (below verification text)
+        const certIdText = `Certificate ID: ${certificateId}`;
+        const certIdSize = CERT_ID_TEXT_SIZE;
+        const certIdWidth = verificationFont.widthOfTextAtSize(certIdText, certIdSize);
+        page.drawText(certIdText, {
+          x: pageWidth - QR_OFFSET_RIGHT - qrDisplayWidth / 2 - certIdWidth / 2,
+          y: pageHeight - CERT_ID_OFFSET_TOP,
+          size: certIdSize,
           font: verificationFont,
           color: rgb(0, 0, 0),
         });
