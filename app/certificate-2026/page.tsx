@@ -72,7 +72,7 @@ export default function Certificate2026Page() {
     setSelectedParticipant(null);
     setSearchError(null);
     setHighlightedIndex(-1);
-    if (trimmed.length < 3) {
+    if (trimmed.length === 0) {
       setResults([]);
       setSearching(false);
       setShowDropdown(false);
@@ -102,7 +102,7 @@ export default function Certificate2026Page() {
       skipSearchRef.current = false;
       return;
     }
-    if (trimmed.length < 3) return;
+    if (trimmed.length === 0) return;
     const controller = new AbortController();
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
@@ -150,7 +150,7 @@ export default function Certificate2026Page() {
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showDropdown && results.length === 0 && !(searching && searchQuery.trim().length >= 3)) return;
+    if (!showDropdown && results.length === 0 && !searching) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       if (results.length === 0) return;
@@ -282,7 +282,7 @@ export default function Certificate2026Page() {
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
                     onFocus={() => {
-                      if (searchQuery.trim().length >= 3 && results.length > 0) setShowDropdown(true);
+                      if (searchQuery.trim() && results.length > 0) setShowDropdown(true);
                     }}
                     placeholder="Search participant..."
                     autoComplete="off"
@@ -299,7 +299,7 @@ export default function Certificate2026Page() {
                       <i className="bi bi-x-lg"></i>
                     </button>
                   )}
-                  {showDropdown && (searchQuery.trim().length >= 3 || searching || searchError) && (
+                  {showDropdown && (searchQuery.trim() || searching || searchError) && (
                     <div
                       className="position-absolute top-100 start-0 end-0 bg-white border rounded shadow-sm mt-1"
                       style={{ maxHeight: "280px", overflowY: "auto", zIndex: 1050 }}
@@ -325,7 +325,7 @@ export default function Certificate2026Page() {
                           </button>
                         );
                       })}
-                      {!searching && !searchError && results.length === 0 && searchQuery.trim().length >= 3 && (
+                      {!searching && !searchError && results.length === 0 && searchQuery.trim() && (
                         <div className="p-3 text-center small text-muted">No participants found</div>
                       )}
                     </div>
