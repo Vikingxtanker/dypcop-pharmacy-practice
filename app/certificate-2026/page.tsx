@@ -15,15 +15,13 @@ const PDFJS_WORKER_URL = "/assets/pdf.worker.min.mjs";
 const NAME_FONT_SIZE = 36;
 const NAME_TEXT_COLOR_RGB = { r: 0, g: 0, b: 0 };
 const NAME_Y = 283;
-const CERT_ID_TEXT_SIZE = 10;
-const CERT_ID_OFFSET_TOP = 40;
-const CERT_ID_OFFSET_RIGHT = 60;
-const QR_SIZE = 100;
-const QR_OFFSET_TOP = 55;
-const QR_OFFSET_RIGHT = 60;
-const VERIFY_TEXT_SIZE = 9;
-const VERIFY_OFFSET_TOP = 160;
-const VERIFY_OFFSET_RIGHT = 60;
+const CERT_ID_TEXT_SIZE = 8;
+const CERT_ID_OFFSET_TOP = 30;
+const QR_SIZE = 60; // reduced ~40% relative to 100
+const QR_OFFSET_TOP = 40;
+const QR_OFFSET_RIGHT = 50;
+const VERIFY_TEXT_SIZE = 7;
+const VERIFY_OFFSET_TOP = 110;
 
 interface ParticipantRow {
   id: string;
@@ -246,42 +244,45 @@ export default function Certificate2026Page() {
       // Overlay Certificate ID + QR + verification text in top-right
       if (certificateId) {
         const qrDataUrl = await QRCode.toDataURL(buildCertificateVerifyUrl(certificateId), {
-          width: QR_SIZE * 2, // higher res
+          width: QR_SIZE * 3, // higher res for smaller display
           margin: 2,
           errorCorrectionLevel: "M",
           color: { dark: "#000000ff", light: "#ffffffff" },
         });
         const qrBytes = await fetch(qrDataUrl).then((r) => r.arrayBuffer());
         const qrImage = await pdfDoc.embedPng(qrBytes);
+        const qrDisplayWidth = QR_SIZE;
+        const qrDisplayHeight = (qrImage.height / qrImage.width) * qrDisplayWidth;
         page.drawImage(qrImage, {
-          x: pageWidth - QR_OFFSET_RIGHT - qrImage.width,
-          y: pageHeight - QR_OFFSET_TOP - qrImage.height,
-          width: qrImage.width,
-          height: qrImage.height,
+          x: pageWidth - QR_OFFSET_RIGHT - qrDisplayWidth,
+          y: pageHeight - QR_OFFSET_TOP - qrDisplayHeight,
+          width: qrDisplayWidth,
+          height: qrDisplayHeight,
         });
 
+        // Use standard font (Helvetica) for verification text; keep participant name font separate (customFont used for name only)
+        const verificationFont = await pdfDoc.embedFont("Helvetica");
         // Certificate ID text
         const certIdText = `Certificate ID: ${certificateId}`;
-        const certIdFont = customFont;
         const certIdSize = CERT_ID_TEXT_SIZE;
-        const certIdWidth = certIdFont.widthOfTextAtSize(certIdText, certIdSize);
+        const certIdWidth = verificationFont.widthOfTextAtSize(certIdText, certIdSize);
         page.drawText(certIdText, {
-          x: pageWidth - CERT_ID_OFFSET_RIGHT - certIdWidth,
+          x: pageWidth - QR_OFFSET_RIGHT - qrDisplayWidth / 2 - certIdWidth / 2,
           y: pageHeight - CERT_ID_OFFSET_TOP,
           size: certIdSize,
-          font: certIdFont,
+          font: verificationFont,
           color: rgb(0, 0, 0),
         });
 
         // Verification text
         const verifyText = "Scan QR code to verify";
         const verifySize = VERIFY_TEXT_SIZE;
-        const verifyWidth = certIdFont.widthOfTextAtSize(verifyText, verifySize);
+        const verifyWidth = verificationFont.widthOfTextAtSize(verifyText, verifySize);
         page.drawText(verifyText, {
-          x: pageWidth - VERIFY_OFFSET_RIGHT - verifyWidth,
+          x: pageWidth - QR_OFFSET_RIGHT - qrDisplayWidth / 2 - verifyWidth / 2,
           y: pageHeight - VERIFY_OFFSET_TOP,
           size: verifySize,
-          font: certIdFont,
+          font: verificationFont,
           color: rgb(0, 0, 0),
         });
       }
