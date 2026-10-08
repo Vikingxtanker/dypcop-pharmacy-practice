@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 
 export const CERTIFICATE_PREFIX = "HC26";
 export const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://dypcoppharmacypractice.in";
@@ -52,10 +52,7 @@ export function buildCertificateVerifyUrl(certificateId: string): string {
  * One persistent certificate per participant - reuses existing if found
  */
 export async function getOrCreateCertificate(participantId: string): Promise<CertificateRecord> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-  
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = createSupabaseAdminClient();
 
   // Try to find existing certificate for this participant
   const { data: existing, error: findError } = await supabase
