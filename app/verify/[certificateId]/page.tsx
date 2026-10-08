@@ -123,7 +123,7 @@ export async function generateMetadata({
     description,
     robots: {
       index: false,
-      follow: true,
+      follow: false,
     },
     openGraph: {
       title,
