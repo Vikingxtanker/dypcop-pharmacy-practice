@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { AuthProvider } from "@/lib/auth-context";
+import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
+import MicrosoftClarity from "@/components/analytics/MicrosoftClarity";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -95,6 +97,10 @@ export default function RootLayout({
         <AuthProvider>
           {children}
         </AuthProvider>
+
+        {/* Analytics */}
+        <GoogleAnalytics />
+        <MicrosoftClarity />
 
         {/* Bootstrap JS */}
         <Script
