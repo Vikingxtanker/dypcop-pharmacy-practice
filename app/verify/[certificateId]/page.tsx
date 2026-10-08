@@ -66,7 +66,7 @@ async function fetchVerificationData(certificateId: string): Promise<Verificatio
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const trimmedId = certificateId.trim();
+  const trimmedId = typeof certificateId === "string" ? certificateId.trim() : String(certificateId || "").trim();
   console.error("[certificate-verify] lookup start", {
     certificateId,
     trimmedId,
@@ -143,7 +143,8 @@ export async function generateMetadata({
 }: {
   params: { certificateId: string };
 }): Promise<Metadata> {
-  const certificateId = params.certificateId;
+  const rawId = params?.certificateId;
+  const certificateId = typeof rawId === "string" ? rawId : String(rawId || "");
   const title = "Certificate Verification | D.Y. Patil College of Pharmacy";
   const description = "Official certificate verification for D.Y. Patil College of Pharmacy certificates.";
 
@@ -157,7 +158,7 @@ export async function generateMetadata({
     openGraph: {
       title,
       description,
-      url: `${SITE_URL}/certificate-2026/verify/${certificateId}`,
+      url: `${SITE_URL}/verify/${certificateId}`,
       type: "website",
     },
     twitter: {
@@ -173,7 +174,8 @@ export default async function CertificateVerifyPage({
 }: {
   params: { certificateId: string };
 }) {
-  const certificateId = params.certificateId;
+  const rawId = params?.certificateId;
+  const certificateId = typeof rawId === "string" ? rawId : String(rawId || "");
   const data = await fetchVerificationData(certificateId);
 
   const isValid = data.found && data.status === "valid";
