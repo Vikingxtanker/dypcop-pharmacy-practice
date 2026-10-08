@@ -53,8 +53,8 @@ function formatIssuedDate(issuedAt: string): string {
 }
 
 async function fetchVerificationData(certificateId: string): Promise<VerificationData> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
   if (!supabaseUrl || !supabaseKey) {
     return { found: false, error: "server_error" };
@@ -64,7 +64,7 @@ async function fetchVerificationData(certificateId: string): Promise<Verificatio
 
   const { data: cert, error: certError } = await supabase
     .from("certificates2026")
-    .select("certificate_id, participant_id, issued_at, status")
+    .select("id, certificate_id, participant_id, issued_at, status")
     .eq("certificate_id", certificateId)
     .maybeSingle();
 
@@ -81,7 +81,7 @@ async function fetchVerificationData(certificateId: string): Promise<Verificatio
 
   const { data: participant, error: partError } = await supabase
     .from("participants2026")
-    .select("id, name, prefix")
+    .select("name, prefix")
     .eq("id", certificate.participant_id)
     .maybeSingle();
 
@@ -97,7 +97,7 @@ async function fetchVerificationData(certificateId: string): Promise<Verificatio
     return { found: false, error: "data_inconsistent", certificateId };
   }
 
-  const p = participant as ParticipantRecord;
+  const p = participant as Pick<ParticipantRecord, "name" | "prefix">;
   const participantName = formatParticipantName(p.name, p.prefix);
 
   return {
