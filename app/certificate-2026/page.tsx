@@ -5,6 +5,8 @@ import MainNavbar from "@/components/layout/MainNavbar";
 import Footer from "@/components/layout/Footer";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
+import QRCode from "qrcode";
+import { buildCertificateVerifyUrl } from "@/lib/certificates/certificate-2026";
 
 const PARTICIPANTS_TABLE = "participants2026";
 const CERTIFICATE_TEMPLATE_URL = "/assets/healthcamp_certificate_2026.pdf";
@@ -13,6 +15,15 @@ const PDFJS_WORKER_URL = "/assets/pdf.worker.min.mjs";
 const NAME_FONT_SIZE = 36;
 const NAME_TEXT_COLOR_RGB = { r: 0, g: 0, b: 0 };
 const NAME_Y = 283;
+const CERT_ID_TEXT_SIZE = 10;
+const CERT_ID_OFFSET_TOP = 40;
+const CERT_ID_OFFSET_RIGHT = 60;
+const QR_SIZE = 100;
+const QR_OFFSET_TOP = 55;
+const QR_OFFSET_RIGHT = 60;
+const VERIFY_TEXT_SIZE = 9;
+const VERIFY_OFFSET_TOP = 160;
+const VERIFY_OFFSET_RIGHT = 60;
 
 interface ParticipantRow {
   id: string;
@@ -43,6 +54,7 @@ export default function Certificate2026Page() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pdfBytesRef = useRef<Uint8Array | null>(null);
   const verifiedNameRef = useRef("");
+  const certificateIdRef = useRef<string>("");
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const skipSearchRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -191,6 +203,20 @@ export default function Certificate2026Page() {
       const verifiedName = `${pPrefix} ${pName}`.trim();
       verifiedNameRef.current = verifiedName;
 
+      // Issue/get certificate from server (server validates participant, generates secure ID)
+      const certRes = await fetch("/api/certificate-2026", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantId: selectedParticipant.id }),
+      });
+      if (!certRes.ok) {
+        const err = await certRes.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to issue certificate");
+      }
+      const certData = await certRes.json();
+      const certificateId = certData?.certificate?.certificate_id || "";
+      certificateIdRef.current = certificateId;
+
       const [pdfLibModule, pdfjsLibModule, fontkitModule] = await Promise.all([
         import("pdf-lib"),
         import("pdfjs-dist"),
@@ -210,11 +236,56 @@ export default function Certificate2026Page() {
       const customFont = await pdfDoc.embedFont(fontBytes);
       const page = pdfDoc.getPages()[0];
       const pageWidth = page.getWidth();
+      const pageHeight = page.getHeight();
       const fontSize = NAME_FONT_SIZE;
       const textWidth = customFont.widthOfTextAtSize(verifiedName, fontSize);
       const x = (pageWidth - textWidth) / 2;
       const y = NAME_Y;
       page.drawText(verifiedName, { x, y, size: fontSize, font: customFont, color: rgb(NAME_TEXT_COLOR_RGB.r, NAME_TEXT_COLOR_RGB.g, NAME_TEXT_COLOR_RGB.b) });
+
+      // Overlay Certificate ID + QR + verification text in top-right
+      if (certificateId) {
+        const qrDataUrl = await QRCode.toDataURL(buildCertificateVerifyUrl(certificateId), {
+          width: QR_SIZE * 2, // higher res
+          margin: 2,
+          errorCorrectionLevel: "M",
+          color: { dark: "#000000ff", light: "#ffffffff" },
+        });
+        const qrBytes = await fetch(qrDataUrl).then((r) => r.arrayBuffer());
+        const qrImage = await pdfDoc.embedPng(qrBytes);
+        page.drawImage(qrImage, {
+          x: pageWidth - QR_OFFSET_RIGHT - qrImage.width,
+          y: pageHeight - QR_OFFSET_TOP - qrImage.height,
+          width: qrImage.width,
+          height: qrImage.height,
+        });
+
+        // Certificate ID text
+        const certIdText = `Certificate ID: ${certificateId}`;
+        const certIdFont = customFont;
+        const certIdSize = CERT_ID_TEXT_SIZE;
+        const certIdWidth = certIdFont.widthOfTextAtSize(certIdText, certIdSize);
+        page.drawText(certIdText, {
+          x: pageWidth - CERT_ID_OFFSET_RIGHT - certIdWidth,
+          y: pageHeight - CERT_ID_OFFSET_TOP,
+          size: certIdSize,
+          font: certIdFont,
+          color: rgb(0, 0, 0),
+        });
+
+        // Verification text
+        const verifyText = "Scan QR code to verify";
+        const verifySize = VERIFY_TEXT_SIZE;
+        const verifyWidth = certIdFont.widthOfTextAtSize(verifyText, verifySize);
+        page.drawText(verifyText, {
+          x: pageWidth - VERIFY_OFFSET_RIGHT - verifyWidth,
+          y: pageHeight - VERIFY_OFFSET_TOP,
+          size: verifySize,
+          font: certIdFont,
+          color: rgb(0, 0, 0),
+        });
+      }
+
       const generatedPdfBytes = await pdfDoc.save();
       pdfBytesRef.current = generatedPdfBytes.slice();
 
