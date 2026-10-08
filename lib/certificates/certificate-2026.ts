@@ -44,7 +44,7 @@ export function generateCertificateId(): string {
  */
 export function buildCertificateVerifyUrl(certificateId: string): string {
   const base = BASE_URL.replace(/\/+$/, "");
-  return `${base}/certificate-2026/verify/${encodeURIComponent(certificateId)}`;
+  return `${base}/verify/${encodeURIComponent(certificateId)}`;
 }
 
 /**
