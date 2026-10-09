@@ -134,11 +134,11 @@ export const CERTIFICATE_2026_SCAN_CAPTION_TEXT = "Scan QR code to verify";
 export const CERTIFICATE_2026_LAYOUT: Certificate2026Layout = {
   qr: {
     // x = horizontal position of the QR's bottom-left corner (pt from page left). Bigger = right.
-    x: 631.25,
+    x: 671.25,
     // y = vertical position of the QR's bottom-left corner (pt from page bottom). Bigger = up.
-    y: 502.499986,
+    y: 402.499986,
     // size = side length of the square QR in pt (drawn width = height = size).
-    size: 70,
+    size: 100,
   },
 
   scanCaption: {
