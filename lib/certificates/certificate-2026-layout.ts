@@ -143,9 +143,9 @@ export const CERTIFICATE_2026_LAYOUT: Certificate2026Layout = {
 
   scanCaption: {
     // x = horizontal CENTRE of the caption (alignment is "center"). Bigger = right.
-    x: 762.25,
+    x: 682.25,
     // y = text baseline height from the page bottom. Bigger = up.
-    y: 500.499986,
+    y: 422.499986,
     fontSize: 7,
     alignment: "center",
     fontFamily: "Helvetica",
