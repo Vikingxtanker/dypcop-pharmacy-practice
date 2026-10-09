@@ -2,7 +2,6 @@ import { randomBytes } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 
 export const CERTIFICATE_PREFIX = "HC26";
-export const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://dypcoppharmacypractice.in";
 
 export interface CertificateRecord {
   id: string;
@@ -37,14 +36,6 @@ export function generateCertificateId(): string {
     }
   }
   return `${CERTIFICATE_PREFIX}-${result.slice(0, 8)}`;
-}
-
-/**
- * Build verification URL for a certificate
- */
-export function buildCertificateVerifyUrl(certificateId: string): string {
-  const base = BASE_URL.replace(/\/+$/, "");
-  return `${base}/verify/${encodeURIComponent(certificateId)}`;
 }
 
 /**

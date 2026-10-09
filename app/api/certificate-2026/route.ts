@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getOrCreateCertificate } from "@/lib/certificates/certificate-2026";
+import { buildCertificateViewUrl } from "@/lib/certificates/certificate-token";
 
 export const runtime = "nodejs";
 
@@ -34,6 +35,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const cert = await getOrCreateCertificate(participantId);
+    // The signed verification URL is built server-side; the signing secret
+    // never reaches the browser. Callers use this as the QR payload.
+    const verifyUrl = buildCertificateViewUrl(cert.certificate_id);
     return NextResponse.json({
       ok: true,
       certificate: {
@@ -42,6 +46,7 @@ export async function POST(request: NextRequest) {
         issued_at: cert.issued_at,
         status: cert.status,
       },
+      verifyUrl,
       participant: {
         name: participant.name,
         phone: participant.phone,

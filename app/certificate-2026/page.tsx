@@ -6,7 +6,6 @@ import Footer from "@/components/layout/Footer";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
 import QRCode from "qrcode";
-import { buildCertificateVerifyUrl } from "@/lib/certificates/certificate-2026";
 
 const PARTICIPANTS_TABLE = "participants2026";
 const CERTIFICATE_TEMPLATE_URL = "/assets/healthcamp_certificate_2026.pdf";
@@ -213,6 +212,7 @@ export default function Certificate2026Page() {
       }
       const certData = await certRes.json();
       const certificateId = certData?.certificate?.certificate_id || "";
+      const verifyUrl = typeof certData?.verifyUrl === "string" ? certData.verifyUrl : "";
       certificateIdRef.current = certificateId;
 
       const [pdfLibModule, pdfjsLibModule, fontkitModule] = await Promise.all([
@@ -242,8 +242,8 @@ export default function Certificate2026Page() {
       page.drawText(verifiedName, { x, y, size: fontSize, font: customFont, color: rgb(NAME_TEXT_COLOR_RGB.r, NAME_TEXT_COLOR_RGB.g, NAME_TEXT_COLOR_RGB.b) });
 
       // Overlay Certificate ID + QR + verification text in top-right
-      if (certificateId) {
-        const qrDataUrl = await QRCode.toDataURL(buildCertificateVerifyUrl(certificateId), {
+      if (certificateId && verifyUrl) {
+        const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
           width: QR_SIZE * 3, // higher res for smaller display
           margin: 2,
           errorCorrectionLevel: "M",
