@@ -136,7 +136,7 @@ export const CERTIFICATE_2026_LAYOUT: Certificate2026Layout = {
     // x = horizontal position of the QR's bottom-left corner (pt from page left). Bigger = right.
     x: 671.25,
     // y = vertical position of the QR's bottom-left corner (pt from page bottom). Bigger = up.
-    y: 402.499986,
+    y: 432.499986,
     // size = side length of the square QR in pt (drawn width = height = size).
     size: 100,
   },
