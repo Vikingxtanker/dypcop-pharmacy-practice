@@ -6,6 +6,12 @@ import Footer from "@/components/layout/Footer";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
 import QRCode from "qrcode";
+import {
+  CERTIFICATE_2026_LAYOUT,
+  CERTIFICATE_2026_SCAN_CAPTION_TEXT,
+  resolveAlignedX,
+  validateCertificate2026Layout,
+} from "@/lib/certificates/certificate-2026-layout";
 
 const PARTICIPANTS_TABLE = "participants2026";
 const CERTIFICATE_TEMPLATE_URL = "/assets/healthcamp_certificate_2026.pdf";
@@ -14,13 +20,6 @@ const PDFJS_WORKER_URL = "/assets/pdf.worker.min.mjs";
 const NAME_FONT_SIZE = 36;
 const NAME_TEXT_COLOR_RGB = { r: 0, g: 0, b: 0 };
 const NAME_Y = 283;
-const CERT_ID_TEXT_SIZE = 8;
-const QR_SIZE = 60; // reduced ~40% relative to 100
-const QR_OFFSET_TOP = 40;
-const QR_OFFSET_RIGHT = 50;
-const VERIFY_TEXT_SIZE = 7;
-const VERIFY_OFFSET_TOP = 95; // gap below QR (y = pageHeight - this)
-const CERT_ID_OFFSET_TOP = 107; // gap below verify text (larger = lower)
 
 interface ParticipantRow {
   id: string;
@@ -241,49 +240,51 @@ export default function Certificate2026Page() {
       const y = NAME_Y;
       page.drawText(verifiedName, { x, y, size: fontSize, font: customFont, color: rgb(NAME_TEXT_COLOR_RGB.r, NAME_TEXT_COLOR_RGB.g, NAME_TEXT_COLOR_RGB.b) });
 
-      // Overlay Certificate ID + QR + verification text in top-right
+      // Overlay Certificate ID + QR + verification text in top-right.
+      // All positions/sizes for these three elements come from the central
+      // configuration in lib/certificates/certificate-2026-layout.ts.
       if (certificateId && verifyUrl) {
+        const layout = CERTIFICATE_2026_LAYOUT;
+        validateCertificate2026Layout(layout, { width: pageWidth, height: pageHeight });
+
+        const { qr, scanCaption, certificateId: certIdLayout } = layout;
+
         const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
-          width: QR_SIZE * 3, // higher res for smaller display
+          width: Math.round(qr.size * 3), // higher res for smaller display
           margin: 2,
           errorCorrectionLevel: "M",
           color: { dark: "#000000ff", light: "#ffffffff" },
         });
         const qrBytes = await fetch(qrDataUrl).then((r) => r.arrayBuffer());
         const qrImage = await pdfDoc.embedPng(qrBytes);
-        const qrDisplayWidth = QR_SIZE;
-        const qrDisplayHeight = (qrImage.height / qrImage.width) * qrDisplayWidth;
         page.drawImage(qrImage, {
-          x: pageWidth - QR_OFFSET_RIGHT - qrDisplayWidth,
-          y: pageHeight - QR_OFFSET_TOP - qrDisplayHeight,
-          width: qrDisplayWidth,
-          height: qrDisplayHeight,
+          x: qr.x,
+          y: qr.y,
+          width: qr.size,
+          height: qr.size,
         });
 
-        // Use standard font (Helvetica) for verification text; keep participant name font separate (customFont used for name only)
-        const verificationFont = await pdfDoc.embedFont("Helvetica");
-        // Verification text (above Certificate ID)
-        const verifyText = "Scan QR code to verify";
-        const verifySize = VERIFY_TEXT_SIZE;
-        const verifyWidth = verificationFont.widthOfTextAtSize(verifyText, verifySize);
-        page.drawText(verifyText, {
-          x: pageWidth - QR_OFFSET_RIGHT - qrDisplayWidth / 2 - verifyWidth / 2,
-          y: pageHeight - VERIFY_OFFSET_TOP,
-          size: verifySize,
-          font: verificationFont,
-          color: rgb(0, 0, 0),
+        // Standard font for verification text; participant name keeps its own font
+        const captionFont = await pdfDoc.embedFont(scanCaption.fontFamily);
+        const captionWidth = captionFont.widthOfTextAtSize(CERTIFICATE_2026_SCAN_CAPTION_TEXT, scanCaption.fontSize);
+        page.drawText(CERTIFICATE_2026_SCAN_CAPTION_TEXT, {
+          x: resolveAlignedX(scanCaption.x, captionWidth, scanCaption.alignment),
+          y: scanCaption.y,
+          size: scanCaption.fontSize,
+          font: captionFont,
+          color: rgb(scanCaption.color.r, scanCaption.color.g, scanCaption.color.b),
         });
 
-        // Certificate ID text (below verification text)
-        const certIdText = `Certificate ID: ${certificateId}`;
-        const certIdSize = CERT_ID_TEXT_SIZE;
-        const certIdWidth = verificationFont.widthOfTextAtSize(certIdText, certIdSize);
+        // Certificate ID text (label + dynamic id)
+        const certIdText = `${certIdLayout.label} ${certificateId}`;
+        const certIdFont = await pdfDoc.embedFont(certIdLayout.fontFamily);
+        const certIdWidth = certIdFont.widthOfTextAtSize(certIdText, certIdLayout.fontSize);
         page.drawText(certIdText, {
-          x: pageWidth - QR_OFFSET_RIGHT - qrDisplayWidth / 2 - certIdWidth / 2,
-          y: pageHeight - CERT_ID_OFFSET_TOP,
-          size: certIdSize,
-          font: verificationFont,
-          color: rgb(0, 0, 0),
+          x: resolveAlignedX(certIdLayout.x, certIdWidth, certIdLayout.alignment),
+          y: certIdLayout.y,
+          size: certIdLayout.fontSize,
+          font: certIdFont,
+          color: rgb(certIdLayout.color.r, certIdLayout.color.g, certIdLayout.color.b),
         });
       }
 
