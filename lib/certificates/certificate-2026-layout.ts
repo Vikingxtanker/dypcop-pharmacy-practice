@@ -143,7 +143,7 @@ export const CERTIFICATE_2026_LAYOUT: Certificate2026Layout = {
 
   scanCaption: {
     // x = horizontal CENTRE of the caption (alignment is "center"). Bigger = right.
-    x: 682.25,
+    x: 732.25,
     // y = text baseline height from the page bottom. Bigger = up.
     y: 422.499986,
     fontSize: 7,
@@ -154,9 +154,9 @@ export const CERTIFICATE_2026_LAYOUT: Certificate2026Layout = {
 
   certificateId: {
     // x = horizontal CENTRE of the text (alignment is "center"). Bigger = right.
-    x: 762.25,
+    x: 732.25,
     // y = text baseline height from the page bottom. Bigger = up.
-    y: 488.499986,
+    y: 411.499986,
     fontSize: 8,
     alignment: "center",
     fontFamily: "Helvetica",
