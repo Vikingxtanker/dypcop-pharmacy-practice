@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import MainNavbar from "@/components/layout/MainNavbar";
 import Footer from "@/components/layout/Footer";
-import { supabase } from "@/lib/supabase";
+import { getParticipants2026 } from "@/lib/certificates/participants-2026-client";
+import {
+  buildParticipantDisplayName,
+  filterParticipants2026,
+  type Participant2026,
+} from "@/lib/certificates/participants-2026-search";
 import Swal from "sweetalert2";
 import QRCode from "qrcode";
 import {
@@ -13,20 +18,12 @@ import {
   validateCertificate2026Layout,
 } from "@/lib/certificates/certificate-2026-layout";
 
-const PARTICIPANTS_TABLE = "participants2026";
 const CERTIFICATE_TEMPLATE_URL = "/assets/healthcamp_certificate_2026.pdf";
 const FONT_URL = "/assets/fonts/AlexBrush-Regular.ttf";
 const PDFJS_WORKER_URL = "/assets/pdf.worker.min.mjs";
 const NAME_FONT_SIZE = 36;
 const NAME_TEXT_COLOR_RGB = { r: 0, g: 0, b: 0 };
 const NAME_Y = 283;
-
-interface ParticipantRow {
-  id: string;
-  name: string;
-  phone: string | null;
-  prefix: string | null;
-}
 
 interface SelectedParticipant {
   id: string;
@@ -37,13 +34,12 @@ interface SelectedParticipant {
 }
 
 export default function Certificate2026Page() {
-  const [searchQuery, setSearchQuery] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [selectedParticipant, setSelectedParticipant] = useState<SelectedParticipant | null>(null);
-  const [results, setResults] = useState<ParticipantRow[]>([]);
+  const [participants, setParticipants] = useState<Participant2026[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [reloadToken, setReloadToken] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [loading, setLoading] = useState(false);
   const [certReady, setCertReady] = useState(false);
@@ -51,100 +47,57 @@ export default function Certificate2026Page() {
   const pdfBytesRef = useRef<Uint8Array | null>(null);
   const verifiedNameRef = useRef("");
   const certificateIdRef = useRef<string>("");
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  const skipSearchRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const latestQueryRef = useRef("");
 
-  const buildDisplayName = (row: ParticipantRow) => `${row.prefix ? row.prefix + " " : ""}${row.name}`.trim();
+  const results = useMemo(
+    () => filterParticipants2026(participants, inputValue),
+    [participants, inputValue],
+  );
+
+  const loadParticipants = useCallback(() => {
+    let cancelled = false;
+    getParticipants2026()
+      .then((rows) => {
+        if (cancelled) return;
+        setParticipants(rows);
+        setLoadState("ready");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error(error);
+        setLoadState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => loadParticipants(), [loadParticipants, reloadToken]);
 
   const handleClear = () => {
-    skipSearchRef.current = false;
     setInputValue("");
-    setSearchQuery("");
     setSelectedParticipant(null);
-    setResults([]);
-    setSearching(false);
     setShowDropdown(false);
     setHighlightedIndex(-1);
-    setSearchError(null);
     inputRef.current?.focus();
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    const trimmed = value.trim();
     setInputValue(value);
-    setSearchQuery(value);
     setSelectedParticipant(null);
-    setSearchError(null);
     setHighlightedIndex(-1);
-    if (trimmed.length === 0) {
-      setResults([]);
-      setSearching(false);
-      setShowDropdown(false);
-    } else {
-      setSearching(true);
-      setShowDropdown(true);
-    }
+    setShowDropdown(value.trim().length > 0);
   };
 
-  const handleSelectParticipant = (row: ParticipantRow) => {
-    const displayName = buildDisplayName(row);
-    skipSearchRef.current = true;
+  const handleSelectParticipant = (row: Participant2026) => {
+    const displayName = buildParticipantDisplayName(row);
     setSelectedParticipant({ id: row.id, name: row.name, phone: row.phone, prefix: row.prefix, displayName });
     setInputValue(displayName);
-    setSearchQuery(displayName);
-    setResults([]);
-    setSearching(false);
     setShowDropdown(false);
     setHighlightedIndex(-1);
-    setSearchError(null);
   };
-
-  useEffect(() => {
-    const trimmed = searchQuery.trim();
-    latestQueryRef.current = trimmed;
-    if (skipSearchRef.current) {
-      skipSearchRef.current = false;
-      return;
-    }
-    if (trimmed.length === 0) return;
-    const controller = new AbortController();
-    debounceRef.current = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const query = trimmed;
-        // PostgREST or= values: quote and escape so , " \ in user input stay literal
-        const escaped = query.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-        const { data, error } = await supabase
-          .from(PARTICIPANTS_TABLE)
-          .select("id, name, phone, prefix")
-          .or(`name.ilike."%${escaped}%",phone.ilike."%${escaped}%"`)
-          .limit(10)
-          .abortSignal(controller.signal);
-        if (controller.signal.aborted) return;
-        if (error) throw error;
-        const rows = (data as ParticipantRow[]) || [];
-        if (latestQueryRef.current === query) {
-          setResults(rows);
-          setHighlightedIndex(-1);
-        }
-      } catch (err: unknown) {
-        if ((err as Error)?.name === "AbortError" || controller.signal.aborted) return;
-        console.error(err);
-        setSearchError("Unable to search participants. Please try again.");
-        setResults([]);
-      } finally {
-        if (!controller.signal.aborted) setSearching(false);
-      }
-    }, 275);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      controller.abort();
-    };
-  }, [searchQuery]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -158,7 +111,7 @@ export default function Certificate2026Page() {
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showDropdown && results.length === 0 && !searching) return;
+    if (!showDropdown && results.length === 0 && loadState !== "loading") return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       if (results.length === 0) return;
@@ -355,7 +308,7 @@ export default function Certificate2026Page() {
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
                     onFocus={() => {
-                      if (searchQuery.trim() && results.length > 0) setShowDropdown(true);
+                      if (!selectedParticipant && inputValue.trim() && (results.length > 0 || loadState === "loading")) setShowDropdown(true);
                     }}
                     placeholder="Search participant..."
                     autoComplete="off"
@@ -372,19 +325,31 @@ export default function Certificate2026Page() {
                       <i className="bi bi-x-lg"></i>
                     </button>
                   )}
-                  {showDropdown && (searchQuery.trim() || searching || searchError) && (
+                  {showDropdown && inputValue.trim() && (
                     <div
                       className="position-absolute top-100 start-0 end-0 bg-white border rounded shadow-sm mt-1"
                       style={{ maxHeight: "280px", overflowY: "auto", zIndex: 1050 }}
                     >
-                      {searching && (
+                      {loadState === "loading" && (
                         <div className="p-3 text-center small text-muted">Searching...</div>
                       )}
-                      {!searching && searchError && results.length === 0 && (
-                        <div className="p-3 text-center small text-danger">{searchError}</div>
+                      {loadState === "error" && (
+                        <div className="p-3 text-center small text-danger">
+                          Unable to load participants.
+                          <button
+                            type="button"
+                            className="btn btn-link btn-sm p-0 ms-1 align-baseline"
+                            onClick={() => {
+                              setLoadState("loading");
+                              setReloadToken((token) => token + 1);
+                            }}
+                          >
+                            Retry
+                          </button>
+                        </div>
                       )}
-                      {!searching && !searchError && results.map((row, idx) => {
-                        const dn = buildDisplayName(row);
+                      {loadState === "ready" && results.map((row, idx) => {
+                        const dn = buildParticipantDisplayName(row);
                         return (
                           <button
                             type="button"
@@ -398,7 +363,7 @@ export default function Certificate2026Page() {
                           </button>
                         );
                       })}
-                      {!searching && !searchError && results.length === 0 && searchQuery.trim() && (
+                      {loadState === "ready" && results.length === 0 && (
                         <div className="p-3 text-center small text-muted">No participants found</div>
                       )}
                     </div>
