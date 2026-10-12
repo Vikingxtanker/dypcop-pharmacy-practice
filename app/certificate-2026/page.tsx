@@ -3,8 +3,8 @@ import Certificate2026Client from "./Certificate2026Client";
 
 const PAGE_URL = "https://dypcoppharmacypractice.in/certificate-2026";
 const OG_IMAGE_URL = "https://dypcoppharmacypractice.in/assets/certificate-2026-og.webp";
-const OG_IMAGE_ALT = "Health Camp Certificate 2026 — download your participation certificate";
-const TITLE = "Health Camp Certificate 2026 | Dr. D. Y. Patil College of Pharmacy";
+const OG_IMAGE_ALT = "Health Check-Up Camp Certificate 2026 — download your participation certificate";
+const TITLE = "Health Check-Up Camp Certificate 2026 | Dr. D. Y. Patil College of Pharmacy";
 const DESCRIPTION =
   "Find, verify, and download your participation certificate for the Health Check-up Camp 2026 organized by the Department of Pharmacy Practice, Dr. D. Y. Patil College of Pharmacy, Akurdi, Pune.";
 
