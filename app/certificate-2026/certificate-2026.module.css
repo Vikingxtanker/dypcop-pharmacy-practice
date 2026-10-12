@@ -25,22 +25,6 @@
   color: var(--hc26-ink);
 }
 
-.title::after {
-  content: "";
-  display: block;
-  width: 64px;
-  height: 4px;
-  margin: 0.9rem auto 0;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--hc26-green), #b8860b);
-}
-
-.subtitle {
-  margin: 0;
-  color: var(--hc26-muted);
-  font-size: clamp(1rem, 1.5vw, 1.1rem);
-}
-
 .searchSection {
   padding: 0;
 }
@@ -310,12 +294,6 @@
   border-radius: 0.35rem;
 }
 
-.resultLead {
-  margin: 0.25rem 0 0;
-  color: var(--hc26-muted);
-  font-size: 1rem;
-}
-
 .resultGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -382,22 +360,8 @@
   text-align: center;
 }
 
-.panelBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  background: var(--hc26-green-soft);
-  color: var(--hc26-green);
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  text-transform: uppercase;
-}
-
 .panelLabel {
-  margin: 1rem 0 0.2rem;
+  margin: 0 0 0.2rem;
   font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -453,13 +417,6 @@
 .downloadBtn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
-}
-
-.hint {
-  margin: 0.85rem 0 0;
-  font-size: 0.85rem;
-  line-height: 1.45;
-  color: var(--hc26-muted);
 }
 
 .srOnly {

@@ -401,7 +401,6 @@ export default function Certificate2026Page() {
         <div className="container">
           <header className={styles.header}>
             <h1 className={styles.title}>Health Camp Certificate 2026</h1>
-            <p className={styles.subtitle}>Find your participation certificate and download the original PDF for printing or sharing.</p>
           </header>
 
           <section className={styles.searchSection} aria-labelledby="hc26-search-title">
@@ -527,7 +526,6 @@ export default function Certificate2026Page() {
                 <h2 id="hc26-result-title" ref={resultHeadingRef} tabIndex={-1} className={styles.resultTitle}>
                   Your certificate is ready
                 </h2>
-                <p className={styles.resultLead}>Download the original PDF for printing or sharing.</p>
               </div>
             </div>
 
@@ -544,9 +542,6 @@ export default function Certificate2026Page() {
 
               <aside className={styles.actionPanel} aria-label="Certificate details and download">
                 <div className={styles.panelCard}>
-                  <span className={styles.panelBadge}>
-                    <i className="bi bi-check-circle-fill" aria-hidden="true" /> Ready
-                  </span>
                   <p className={styles.panelLabel}>Certificate for</p>
                   <p className={styles.panelName}>{generatedName || selectedParticipant?.displayName || "Participant"}</p>
                   <button
@@ -567,7 +562,6 @@ export default function Certificate2026Page() {
                       </>
                     )}
                   </button>
-                  <p className={styles.hint}>Downloading the PDF preserves the original certificate quality and layout.</p>
                 </div>
               </aside>
             </div>
