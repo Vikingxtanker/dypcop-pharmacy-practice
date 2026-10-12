@@ -17,6 +17,7 @@ import {
   resolveAlignedX,
   validateCertificate2026Layout,
 } from "@/lib/certificates/certificate-2026-layout";
+import styles from "./certificate-2026.module.css";
 
 const CERTIFICATE_TEMPLATE_URL = "/assets/healthcamp_certificate_2026.pdf";
 const FONT_URL = "/assets/fonts/AlexBrush-Regular.ttf";
@@ -74,6 +75,18 @@ export default function Certificate2026Page() {
   }, []);
 
   useEffect(() => loadParticipants(), [loadParticipants, reloadToken]);
+
+  const liveMessage = useMemo(() => {
+    if (certReady) return "Certificate is ready. You can download it.";
+    if (selectedParticipant) {
+      return `${selectedParticipant.displayName} selected. Choose Verify and Generate to continue.`;
+    }
+    if (loadState === "loading") return "Loading participants.";
+    if (loadState === "error") return "Unable to load participants.";
+    if (!inputValue.trim()) return "";
+    if (results.length === 0) return "No participants found.";
+    return `${results.length} participant${results.length === 1 ? "" : "s"} found.`;
+  }, [certReady, selectedParticipant, loadState, inputValue, results.length]);
 
   const handleClear = () => {
     setInputValue("");
@@ -257,8 +270,6 @@ export default function Certificate2026Page() {
       const viewport = pdfPage.getViewport({ scale: scale * dpr });
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      canvas.style.width = `${viewport.width / dpr}px`;
-      canvas.style.height = `${viewport.height / dpr}px`;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       await pdfPage.render({ canvas: canvas as HTMLCanvasElement, viewport }).promise;
       setCertReady(true);
@@ -292,53 +303,68 @@ export default function Certificate2026Page() {
   return (
     <>
       <MainNavbar />
-      <main className="flex-fill mt-5 pt-5">
-        <div className="container py-5">
-          <h2 className="text-center fw-bold mb-4">Health Camp Certificate 2026</h2>
-          <div className="row justify-content-center">
-            <div className="col-md-6">
-              <div className="bg-white p-4 shadow rounded text-center position-relative">
-                <label className="form-label">Enter your registered name or phone number</label>
-                <div ref={dropdownRef} className="position-relative">
+      <main className={`flex-fill ${styles.page}`}>
+        <div className="container">
+          <header className={styles.header}>
+            <h1 className={styles.title}>Health Camp Certificate 2026</h1>
+            <p className={styles.subtitle}>Find your participation certificate and download your copy.</p>
+          </header>
+
+          <section className={styles.searchSection} aria-labelledby="hc26-search-title">
+            <div className={styles.card}>
+              <h2 id="hc26-search-title" className={styles.srOnly}>
+                Find your certificate
+              </h2>
+              <form
+                className={styles.form}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleVerify();
+                }}
+              >
+                <label htmlFor="hc26-participant-search" className={styles.label}>
+                  Enter your registered name or phone number
+                </label>
+                <div ref={dropdownRef} className={styles.searchWrap}>
+                  <i className={`bi bi-search ${styles.searchIcon}`} aria-hidden="true" />
                   <input
+                    id="hc26-participant-search"
                     ref={inputRef}
                     type="text"
-                    className="form-control"
+                    role="combobox"
+                    aria-expanded={showDropdown && inputValue.trim().length > 0}
+                    aria-controls="hc26-participant-listbox"
+                    aria-autocomplete="list"
+                    aria-activedescendant={highlightedIndex >= 0 ? `hc26-participant-option-${highlightedIndex}` : undefined}
+                    className={styles.input}
                     value={inputValue}
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
                     onFocus={() => {
                       if (!selectedParticipant && inputValue.trim() && (results.length > 0 || loadState === "loading")) setShowDropdown(true);
                     }}
-                    placeholder="Search participant..."
+                    placeholder="Search by name or phone"
                     autoComplete="off"
-                    style={inputValue ? { paddingRight: "2.25rem" } : undefined}
                   />
                   {inputValue && (
-                    <button
-                      type="button"
-                      aria-label="Clear search"
-                      className="btn btn-link position-absolute top-50 end-0 translate-middle-y border-0 text-secondary p-0 me-2"
-                      style={{ lineHeight: 1, textDecoration: "none" }}
-                      onClick={handleClear}
-                    >
-                      <i className="bi bi-x-lg"></i>
+                    <button type="button" aria-label="Clear search" className={styles.clear} onClick={handleClear}>
+                      <i className="bi bi-x-lg" aria-hidden="true" />
                     </button>
                   )}
                   {showDropdown && inputValue.trim() && (
                     <div
-                      className="position-absolute top-100 start-0 end-0 bg-white border rounded shadow-sm mt-1"
-                      style={{ maxHeight: "280px", overflowY: "auto", zIndex: 1050 }}
+                      id="hc26-participant-listbox"
+                      role="listbox"
+                      aria-label="Participant search results"
+                      className={styles.dropdown}
                     >
-                      {loadState === "loading" && (
-                        <div className="p-3 text-center small text-muted">Searching...</div>
-                      )}
+                      {loadState === "loading" && <div className={styles.status}>Searching...</div>}
                       {loadState === "error" && (
-                        <div className="p-3 text-center small text-danger">
+                        <div className={`${styles.status} ${styles.statusError}`}>
                           Unable to load participants.
                           <button
                             type="button"
-                            className="btn btn-link btn-sm p-0 ms-1 align-baseline"
+                            className={styles.retry}
                             onClick={() => {
                               setLoadState("loading");
                               setReloadToken((token) => token + 1);
@@ -354,39 +380,62 @@ export default function Certificate2026Page() {
                           <button
                             type="button"
                             key={row.id}
-                            className={`w-100 text-start border-0 bg-transparent px-3 py-2 d-flex flex-column ${idx === highlightedIndex ? "bg-light" : ""}`}
+                            id={`hc26-participant-option-${idx}`}
+                            role="option"
+                            aria-selected={idx === highlightedIndex}
+                            className={`${styles.option} ${idx === highlightedIndex ? styles.optionActive : ""}`}
                             onClick={() => handleSelectParticipant(row)}
                             onMouseEnter={() => setHighlightedIndex(idx)}
                           >
-                            <span className="fw-semibold">{dn}</span>
-                            {row.phone && <span className="small text-muted">{row.phone}</span>}
+                            <span className={styles.optionName}>{dn}</span>
+                            {row.phone && <span className={styles.optionMeta}>{row.phone}</span>}
                           </button>
                         );
                       })}
                       {loadState === "ready" && results.length === 0 && (
-                        <div className="p-3 text-center small text-muted">No participants found</div>
+                        <div className={styles.status}>No participants found</div>
                       )}
                     </div>
                   )}
                 </div>
-                <button className="btn btn-primary px-4 mt-3" onClick={handleVerify} disabled={loading}>
-                  {loading ? "Verifying..." : "Verify & Generate"}
+
+                <button type="submit" className={styles.primaryBtn} disabled={loading}>
+                  {loading ? (
+                    <>
+                      <span className={styles.spinner} aria-hidden="true" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-patch-check" aria-hidden="true" />
+                      Verify &amp; Generate
+                    </>
+                  )}
+                </button>
+              </form>
+              <p className={styles.srOnly} role="status" aria-live="polite">
+                {liveMessage}
+              </p>
+            </div>
+          </section>
+
+          <section
+            className={styles.previewSection}
+            style={{ display: certReady ? "block" : "none" }}
+            aria-label="Certificate preview"
+          >
+            <div className={styles.previewFrame}>
+              <canvas ref={canvasRef} className={styles.canvas} />
+            </div>
+            {certReady && (
+              <div className={styles.actions}>
+                <button type="button" className={styles.downloadBtn} onClick={handleDownload}>
+                  <i className="bi bi-download" aria-hidden="true" />
+                  <span>Download Certificate</span>
                 </button>
               </div>
-            </div>
-          </div>
-
-          <div className="text-center mt-4">
-            <canvas ref={canvasRef} className="shadow rounded mb-3" style={{ maxWidth: "100%", display: certReady ? "block" : "none" }} />
-            {certReady && (
-              <>
-                <br />
-                <button className="btn btn-success px-4" onClick={handleDownload}>
-                  <i className="bi bi-download me-2"></i>Download Certificate
-                </button>
-              </>
             )}
-          </div>
+          </section>
         </div>
       </main>
       <Footer />
