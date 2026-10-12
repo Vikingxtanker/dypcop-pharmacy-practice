@@ -5,8 +5,9 @@
   --hc26-ink: #1f2937;
   --hc26-muted: #5b6470;
   --hc26-border: #e6e9ee;
+  --hc26-navbar-offset: clamp(5.5rem, 8vw, 7rem);
 
-  padding-top: clamp(5.5rem, 8vw, 7rem);
+  padding-top: var(--hc26-navbar-offset);
   padding-bottom: 6rem;
 }
 
@@ -40,8 +41,7 @@
   font-size: clamp(1rem, 1.5vw, 1.1rem);
 }
 
-.searchSection,
-.previewSection {
+.searchSection {
   padding: 0;
 }
 
@@ -267,13 +267,68 @@
   }
 }
 
-.previewSection {
+/* ---- State B: result section ---- */
+
+.result {
   margin-top: 3rem;
+  scroll-margin-top: var(--hc26-navbar-offset);
+}
+
+.resultHead {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  max-width: 46rem;
+  margin: 0 auto 1.75rem;
+  text-align: left;
+}
+
+.successIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--hc26-green-soft);
+  color: var(--hc26-green);
+  font-size: 1.6rem;
+}
+
+.resultTitle {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--hc26-ink);
+}
+
+.resultTitle:focus-visible {
+  outline: 3px solid rgba(20, 83, 45, 0.45);
+  outline-offset: 4px;
+  border-radius: 0.35rem;
+}
+
+.resultLead {
+  margin: 0.25rem 0 0;
+  color: var(--hc26-muted);
+  font-size: 1rem;
+}
+
+.resultGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: start;
+}
+
+.previewCol {
+  min-width: 0;
 }
 
 .previewFrame {
-  max-width: 58rem;
-  margin: 0 auto;
+  width: 100%;
   padding: clamp(0.75rem, 2vw, 1.25rem);
   background: #fff;
   border: 1px solid var(--hc26-border);
@@ -288,10 +343,74 @@
   border-radius: 0.6rem;
 }
 
-.actions {
-  display: flex;
-  justify-content: center;
-  margin-top: 1.5rem;
+.viewLarger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--hc26-border);
+  border-radius: 0.6rem;
+  background: #fff;
+  color: var(--hc26-green);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.viewLarger:hover {
+  background: #f6f8f7;
+  border-color: #cbd5cf;
+}
+
+.viewLarger:focus-visible {
+  outline: 3px solid rgba(20, 83, 45, 0.45);
+  outline-offset: 2px;
+}
+
+.actionPanel {
+  min-width: 0;
+}
+
+.panelCard {
+  padding: 1.5rem;
+  background: #fff;
+  border: 1px solid var(--hc26-border);
+  border-radius: 1rem;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.08);
+  text-align: center;
+}
+
+.panelBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: var(--hc26-green-soft);
+  color: var(--hc26-green);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.panelLabel {
+  margin: 1rem 0 0.2rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--hc26-muted);
+}
+
+.panelName {
+  margin: 0 0 1.25rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--hc26-ink);
+  overflow-wrap: anywhere;
 }
 
 .downloadBtn {
@@ -299,15 +418,16 @@
   align-items: center;
   justify-content: center;
   gap: 0.6rem;
+  width: 100%;
   min-height: 3.4rem;
-  padding: 0.8rem 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.8rem 1.5rem;
+  border: 0;
   border-radius: 0.75rem;
   background: var(--hc26-green);
   color: #fff;
-  font-size: 1.05rem;
+  font-size: 1.02rem;
   font-weight: 600;
-  box-shadow: 0 12px 26px rgba(20, 83, 45, 0.22);
+  box-shadow: 0 12px 26px rgba(20, 83, 45, 0.2);
   cursor: pointer;
   transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.06s ease;
 }
@@ -316,18 +436,30 @@
   font-size: 1.2rem;
 }
 
-.downloadBtn:hover {
+.downloadBtn:hover:not(:disabled) {
   background: var(--hc26-green-dark);
-  box-shadow: 0 16px 32px rgba(20, 83, 45, 0.3);
+  box-shadow: 0 16px 32px rgba(20, 83, 45, 0.28);
 }
 
-.downloadBtn:active {
+.downloadBtn:active:not(:disabled) {
   transform: translateY(1px);
 }
 
 .downloadBtn:focus-visible {
   outline: 3px solid rgba(20, 83, 45, 0.5);
   outline-offset: 3px;
+}
+
+.downloadBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.hint {
+  margin: 0.85rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--hc26-muted);
 }
 
 .srOnly {
@@ -342,14 +474,112 @@
   border: 0;
 }
 
-@media (max-width: 575.98px) {
-  .downloadBtn {
-    width: 100%;
-    max-width: 22rem;
+/* ---- Mobile persistent download bar (hidden by default) ---- */
+
+.mobileBar {
+  display: none;
+}
+
+.barSpacer {
+  display: none;
+}
+
+/* ---- Desktop / large screens: two-column result with sticky panel ---- */
+
+@media (min-width: 992px) {
+  .resultGrid {
+    grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
+    gap: 2rem;
   }
 
+  .actionPanel {
+    position: sticky;
+    top: var(--hc26-navbar-offset);
+  }
+}
+
+/* ---- Tablet and mobile: stack + persistent bottom bar ---- */
+
+@media (max-width: 991.98px) {
+  .resultHead {
+    max-width: 58rem;
+  }
+
+  /* On small screens the fixed bottom bar is the single primary download
+     action, so the in-panel button is not duplicated here. */
+  .panelCard .downloadBtn {
+    display: none;
+  }
+
+  .mobileBar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1050;
+    display: block;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    background: #fff;
+    border-top: 1px solid var(--hc26-border);
+    box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.12);
+  }
+
+  .mobileBarBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    width: 100%;
+    min-height: 3.25rem;
+    padding: 0.7rem 1.25rem;
+    border: 0;
+    border-radius: 0.75rem;
+    background: var(--hc26-green);
+    color: #fff;
+    font-size: 1.02rem;
+    font-weight: 600;
+    box-shadow: 0 8px 20px rgba(20, 83, 45, 0.24);
+    cursor: pointer;
+    transition: background-color 0.18s ease, transform 0.06s ease;
+  }
+
+  .mobileBarBtn i {
+    font-size: 1.2rem;
+  }
+
+  .mobileBarBtn:hover:not(:disabled) {
+    background: var(--hc26-green-dark);
+  }
+
+  .mobileBarBtn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  .mobileBarBtn:focus-visible {
+    outline: 3px solid rgba(20, 83, 45, 0.5);
+    outline-offset: 3px;
+  }
+
+  .mobileBarBtn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  /* Reserve space so the fixed bar never covers the certificate, controls or
+     footer at the very bottom of the page. */
+  .barSpacer {
+    display: block;
+    height: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 575.98px) {
   .previewFrame {
     border-radius: 0.85rem;
+  }
+
+  .panelCard {
+    padding: 1.25rem;
   }
 }
 
@@ -357,12 +587,15 @@
   .input,
   .clear,
   .primaryBtn,
-  .downloadBtn {
+  .downloadBtn,
+  .viewLarger,
+  .mobileBarBtn {
     transition: none;
   }
 
   .primaryBtn:active:not(:disabled),
-  .downloadBtn:active {
+  .downloadBtn:active:not(:disabled),
+  .mobileBarBtn:active:not(:disabled) {
     transform: none;
   }
 }

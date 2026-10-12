@@ -44,6 +44,8 @@ export default function Certificate2026Page() {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [loading, setLoading] = useState(false);
   const [certReady, setCertReady] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [generatedName, setGeneratedName] = useState("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pdfBytesRef = useRef<Uint8Array | null>(null);
   const verifiedNameRef = useRef("");
@@ -51,6 +53,8 @@ export default function Certificate2026Page() {
   const trackedCertificateIdRef = useRef<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultRef = useRef<HTMLElement>(null);
+  const resultHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const results = useMemo(
     () => filterParticipants2026(participants, inputValue),
@@ -123,6 +127,18 @@ export default function Certificate2026Page() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // When a certificate becomes ready, move attention to the result so the
+  // download action is immediately discoverable, without scrolling below it.
+  useEffect(() => {
+    if (!certReady) return;
+    const heading = resultHeadingRef.current;
+    const section = resultRef.current;
+    if (!section) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    heading?.focus({ preventScroll: true });
+    section.scrollIntoView({ behavior: reduceMotion ? "instant" : "smooth", block: "start" });
+  }, [certReady]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showDropdown && results.length === 0 && loadState !== "loading") return;
@@ -274,7 +290,16 @@ export default function Certificate2026Page() {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       await pdfPage.render({ canvas: canvas as HTMLCanvasElement, viewport }).promise;
       setCertReady(true);
-      Swal.fire("Success!", "Certificate generated successfully!", "success");
+      setGeneratedName(verifiedName);
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "success",
+        title: "Certificate ready",
+        showConfirmButton: false,
+        timer: 2200,
+        timerProgressBar: true,
+      });
     } catch (err) {
       console.error(err);
       Swal.fire("Error", "Could not generate certificate.", "error");
@@ -305,35 +330,67 @@ export default function Certificate2026Page() {
     }
   };
 
+  // Open a larger, focused view of the generated certificate. Reuses the
+  // existing SweetAlert2 dialog (already the project's dialog convention)
+  // rather than adding a new dependency; the image is the already-rendered
+  // preview canvas, so no second PDF is generated.
+  const openLarger = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    Swal.fire({
+      imageUrl: canvas.toDataURL("image/png"),
+      imageAlt: "Health Camp Certificate 2026",
+      title: "Certificate preview",
+      width: "min(1100px, 92vw)",
+      confirmButtonText: "Close",
+      confirmButtonColor: "#14532d",
+    });
+  };
+
   const handleDownload = async () => {
     if (!pdfBytesRef.current) {
       Swal.fire("Error", "No certificate generated yet.", "warning");
       return;
     }
-    const blob = new Blob([new Uint8Array(pdfBytesRef.current)], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const safeName = verifiedNameRef.current.replace(/\s+/g, "_") || "Participant";
-    a.href = url;
-    a.download = `HealthCamp2026_Certificate_${safeName}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const blob = new Blob([new Uint8Array(pdfBytesRef.current)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeName = verifiedNameRef.current.replace(/\s+/g, "_") || "Participant";
+      a.href = url;
+      a.download = `HealthCamp2026_Certificate_${safeName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
-    // The browser download above has been initiated. Record the download
-    // server-side; a tracking failure must never block or hide the file the
-    // user already received.
-    const tracked = await trackDownload(certificateIdRef.current);
-    if (tracked) {
-      Swal.fire({ icon: "success", title: "Certificate Downloaded!", text: "Please check your downloads.", confirmButtonColor: "#0077c8" });
-    } else {
-      Swal.fire({
-        icon: "warning",
-        title: "Downloaded, but not recorded",
-        text: "Your certificate was downloaded, but we couldn't record the download.",
-        confirmButtonColor: "#f39c12",
-      });
+      // The browser download above has been initiated. Record the download
+      // server-side; a tracking failure must never block or hide the file the
+      // user already received.
+      const tracked = await trackDownload(certificateIdRef.current);
+      if (tracked) {
+        Swal.fire({
+          toast: true,
+          position: "top-end",
+          icon: "success",
+          title: "Download started",
+          text: "Check your downloads for the PDF.",
+          showConfirmButton: false,
+          timer: 2600,
+          timerProgressBar: true,
+        });
+      } else {
+        Swal.fire({
+          icon: "warning",
+          title: "Downloaded, but not recorded",
+          text: "Your certificate was downloaded, but we couldn't record the download.",
+          confirmButtonColor: "#f39c12",
+        });
+      }
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -344,7 +401,7 @@ export default function Certificate2026Page() {
         <div className="container">
           <header className={styles.header}>
             <h1 className={styles.title}>Health Camp Certificate 2026</h1>
-            <p className={styles.subtitle}>Find your participation certificate and download your copy.</p>
+            <p className={styles.subtitle}>Find your participation certificate and download the original PDF for printing or sharing.</p>
           </header>
 
           <section className={styles.searchSection} aria-labelledby="hc26-search-title">
@@ -457,24 +514,90 @@ export default function Certificate2026Page() {
           </section>
 
           <section
-            className={styles.previewSection}
-            style={{ display: certReady ? "block" : "none" }}
-            aria-label="Certificate preview"
+            ref={resultRef}
+            className={styles.result}
+            style={{ display: certReady ? undefined : "none" }}
+            aria-labelledby="hc26-result-title"
           >
-            <div className={styles.previewFrame}>
-              <canvas ref={canvasRef} className={styles.canvas} />
+            <div className={styles.resultHead}>
+              <span className={styles.successIcon} aria-hidden="true">
+                <i className="bi bi-check-circle-fill" />
+              </span>
+              <div>
+                <h2 id="hc26-result-title" ref={resultHeadingRef} tabIndex={-1} className={styles.resultTitle}>
+                  Your certificate is ready
+                </h2>
+                <p className={styles.resultLead}>Download the original PDF for printing or sharing.</p>
+              </div>
             </div>
-            {certReady && (
-              <div className={styles.actions}>
-                <button type="button" className={styles.downloadBtn} onClick={handleDownload}>
-                  <i className="bi bi-download" aria-hidden="true" />
-                  <span>Download Certificate</span>
+
+            <div className={styles.resultGrid}>
+              <div className={styles.previewCol}>
+                <div className={styles.previewFrame}>
+                  <canvas ref={canvasRef} className={styles.canvas} />
+                </div>
+                <button type="button" className={styles.viewLarger} onClick={openLarger}>
+                  <i className="bi bi-arrows-fullscreen" aria-hidden="true" />
+                  <span>View certificate larger</span>
                 </button>
               </div>
-            )}
+
+              <aside className={styles.actionPanel} aria-label="Certificate details and download">
+                <div className={styles.panelCard}>
+                  <span className={styles.panelBadge}>
+                    <i className="bi bi-check-circle-fill" aria-hidden="true" /> Ready
+                  </span>
+                  <p className={styles.panelLabel}>Certificate for</p>
+                  <p className={styles.panelName}>{generatedName || selectedParticipant?.displayName || "Participant"}</p>
+                  <button
+                    type="button"
+                    className={styles.downloadBtn}
+                    onClick={handleDownload}
+                    disabled={downloading}
+                  >
+                    {downloading ? (
+                      <>
+                        <span className={styles.spinner} aria-hidden="true" />
+                        Preparing...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-download" aria-hidden="true" />
+                        Download Certificate (PDF)
+                      </>
+                    )}
+                  </button>
+                  <p className={styles.hint}>Downloading the PDF preserves the original certificate quality and layout.</p>
+                </div>
+              </aside>
+            </div>
           </section>
         </div>
+
+        {certReady && !showDropdown && (
+          <div className={styles.mobileBar} role="region" aria-label="Certificate download">
+            <button
+              type="button"
+              className={styles.mobileBarBtn}
+              onClick={handleDownload}
+              disabled={downloading}
+            >
+              {downloading ? (
+                <>
+                  <span className={styles.spinner} aria-hidden="true" />
+                  Preparing...
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-download" aria-hidden="true" />
+                  Download Certificate
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </main>
+      {certReady && <div className={styles.barSpacer} aria-hidden="true" />}
       <Footer />
     </>
   );
