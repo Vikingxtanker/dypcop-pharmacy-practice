@@ -1,7 +1,6 @@
-import { randomBytes } from "node:crypto";
-import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import { generateCertificateId } from "./certificate-id";
 
-export const CERTIFICATE_PREFIX = "HC26";
+export { CERTIFICATE_PREFIX, generateCertificateId } from "./certificate-id";
 
 export interface CertificateRecord {
   id: string;
@@ -17,33 +16,66 @@ export interface CertificateWithParticipant extends CertificateRecord {
   participant_prefix?: string | null;
 }
 
-/**
- * Generate a secure certificate ID in format HC26-XXXXXXXX
- * X represents 8 random alphanumeric characters (uppercase)
- */
-export function generateCertificateId(): string {
-  const bytes = randomBytes(4);
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let result = "";
-  for (let i = 0; i < 8; i++) {
-    result += chars[bytes[i] & 0x1f];
-  }
-  // Ensure we use all 8 chars from random
-  if (result.length < 8) {
-    const extra = randomBytes(8);
-    for (let i = result.length; i < 8; i++) {
-      result += chars[extra[i] & 0x1f];
-    }
-  }
-  return `${CERTIFICATE_PREFIX}-${result.slice(0, 8)}`;
+export interface CertificateDbError {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+}
+
+interface MaybeSingleResult<T> {
+  data: T | null;
+  error: CertificateDbError | null;
+}
+
+interface CertificateSelectQuery<T> {
+  eq(column: string, value: string): CertificateSelectQuery<T>;
+  maybeSingle(): Promise<MaybeSingleResult<T>>;
+}
+
+interface CertificateInsertQuery<T> {
+  select(): { single(): Promise<MaybeSingleResult<T>> };
+}
+
+interface CertificateTable<T> {
+  select(columns: string): CertificateSelectQuery<T>;
+  insert(values: Record<string, unknown>): CertificateInsertQuery<T>;
 }
 
 /**
- * Get or create certificate for a participant
- * One persistent certificate per participant - reuses existing if found
+ * Minimal structural view of the Supabase client used for issuance. Keeping it
+ * narrow lets tests inject a fake database without a network or credentials.
  */
-export async function getOrCreateCertificate(participantId: string): Promise<CertificateRecord> {
-  const supabase = createSupabaseAdminClient();
+export interface CertificateDb {
+  from(table: string): CertificateTable<CertificateRecord>;
+}
+
+export type CertificateDbFactory = () => Promise<CertificateDb>;
+
+async function defaultCertificateDbFactory(): Promise<CertificateDb> {
+  const { createSupabaseAdminClient } = await import("@/lib/supabase-admin");
+  return createSupabaseAdminClient() as unknown as CertificateDb;
+}
+
+/** A Postgres unique-violation on the certificate_id column. */
+function isCertificateIdCollision(error: CertificateDbError | null | undefined): boolean {
+  return error?.code === "23505" && (error.message?.includes("certificate_id") ?? false);
+}
+
+/**
+ * Get or create certificate for a participant.
+ * One persistent certificate per participant - reuses existing if found.
+ *
+ * Collisions on the generated certificate_id are retried with a fresh random
+ * ID; the database is the source of truth, so a real duplicate (or any other
+ * error) still fails loudly.
+ */
+export async function getOrCreateCertificate(
+  participantId: string,
+  createDb: CertificateDbFactory = defaultCertificateDbFactory,
+  maxRetries = 5,
+): Promise<CertificateRecord> {
+  const supabase = await createDb();
 
   // Try to find existing certificate for this participant
   const { data: existing, error: findError } = await supabase
@@ -57,44 +89,28 @@ export async function getOrCreateCertificate(participantId: string): Promise<Cer
   }
 
   if (existing) {
-    return existing as CertificateRecord;
+    return existing;
   }
 
-  // Create new certificate with unique ID
-  let certificateId = generateCertificateId();
-  let retries = 0;
-  const maxRetries = 5;
+  // Create new certificate, retrying with a fresh ID on unique collisions.
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const certificateId = generateCertificateId();
+    const { data, error } = await supabase
+      .from("certificates2026")
+      .insert({
+        certificate_id: certificateId,
+        participant_id: participantId,
+        status: "valid",
+      })
+      .select()
+      .single();
 
-  while (retries < maxRetries) {
-    try {
-      const { data, error } = await supabase
-        .from("certificates2026")
-        .insert({
-          certificate_id: certificateId,
-          participant_id: participantId,
-          status: "valid",
-        })
-        .select()
-        .single();
-
-      if (error) {
-        // If duplicate key on certificate_id, generate new one and retry
-        if (error.code === "23505" && error.message.includes("certificate_id")) {
-          certificateId = generateCertificateId();
-          retries++;
-          continue;
-        }
-        throw error;
-      }
+    if (!error) {
       return data as CertificateRecord;
-    } catch (err: unknown) {
-      const error = err as { code?: string; message?: string };
-      if (error?.code === "23505" && error?.message?.includes("certificate_id")) {
-        certificateId = generateCertificateId();
-        retries++;
-        continue;
-      }
-      throw err;
+    }
+
+    if (!isCertificateIdCollision(error)) {
+      throw error;
     }
   }
 
