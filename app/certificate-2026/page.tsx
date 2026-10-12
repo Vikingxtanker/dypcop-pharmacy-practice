@@ -48,6 +48,7 @@ export default function Certificate2026Page() {
   const pdfBytesRef = useRef<Uint8Array | null>(null);
   const verifiedNameRef = useRef("");
   const certificateIdRef = useRef<string>("");
+  const trackedCertificateIdRef = useRef<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -282,7 +283,29 @@ export default function Certificate2026Page() {
     }
   };
 
-  const handleDownload = () => {
+  // Ask the server to record this certificate as downloaded. Kept fire-safe:
+  // returns false (and logs) instead of throwing so a tracking failure cannot
+  // break the download experience. Skips the request once this exact
+  // certificate has already been recorded.
+  const trackDownload = async (certificateId: string): Promise<boolean> => {
+    if (!certificateId) return false;
+    if (trackedCertificateIdRef.current === certificateId) return true;
+    try {
+      const res = await fetch("/api/certificate-2026/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ certificateId }),
+      });
+      if (!res.ok) return false;
+      trackedCertificateIdRef.current = certificateId;
+      return true;
+    } catch (error) {
+      console.error("certificate-2026 download tracking failed", error);
+      return false;
+    }
+  };
+
+  const handleDownload = async () => {
     if (!pdfBytesRef.current) {
       Swal.fire("Error", "No certificate generated yet.", "warning");
       return;
@@ -297,7 +320,21 @@ export default function Certificate2026Page() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    Swal.fire({ icon: "success", title: "Certificate Downloaded!", text: "Please check your downloads.", confirmButtonColor: "#0077c8" });
+
+    // The browser download above has been initiated. Record the download
+    // server-side; a tracking failure must never block or hide the file the
+    // user already received.
+    const tracked = await trackDownload(certificateIdRef.current);
+    if (tracked) {
+      Swal.fire({ icon: "success", title: "Certificate Downloaded!", text: "Please check your downloads.", confirmButtonColor: "#0077c8" });
+    } else {
+      Swal.fire({
+        icon: "warning",
+        title: "Downloaded, but not recorded",
+        text: "Your certificate was downloaded, but we couldn't record the download.",
+        confirmButtonColor: "#f39c12",
+      });
+    }
   };
 
   return (
